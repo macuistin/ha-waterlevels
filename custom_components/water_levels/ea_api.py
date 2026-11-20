@@ -76,16 +76,28 @@ def parse_readings(payload: object) -> list[Reading]:
     return sorted(readings, key=lambda reading: reading.time)
 
 
+def _latest_time(measure: dict[str, Any]) -> float | None:
+    """When a measure last reported, from its latestReading, or None if it never has.
+
+    A measure that no longer reports has a bare link (or nothing) there, not a reading.
+    """
+    reading = measure.get("latestReading")
+    time = parse_time(str(reading.get("dateTime", ""))) if isinstance(reading, dict) else None
+    return time.timestamp() if time else None
+
+
 def pick_measures(measures: object) -> tuple[str | None, str | None]:
     """Choose a station's level measure and its flow measure, as notations.
 
-    The level is the instantaneous Stage reading, on the stage datum (mASD) where
-    there is a choice, because that is the datum the stage scale is on. Then Downstream
-    Stage, then Tidal Level. The flow is an instantaneous reading in m³/s. Either is
+    The level is an instantaneous Stage reading, then Downstream Stage, then Tidal Level.
+    Within one of those, a measure that still reports comes first, because a station can
+    keep a retired measure beside its live one; then the stage datum (mASD) where there
+    is a choice, because that is the datum the stage scale is on; then the newest
+    reading. The flow is an instantaneous reading in m³/s, chosen the same way. Either is
     None when the station has no such measure.
     """
-    levels: list[tuple[tuple[int, int], str]] = []
-    flows: list[tuple[int, str]] = []
+    levels: list[tuple[tuple[int, int, int, float], str]] = []
+    flows: list[tuple[tuple[int, int, float], str]] = []
     for measure in measures if isinstance(measures, list) else []:
         if not isinstance(measure, dict) or not measure.get("@id"):
             continue
@@ -93,12 +105,15 @@ def pick_measures(measures: object) -> tuple[str | None, str | None]:
             continue
         notation = _tail(measure["@id"])
         qualifier = str(measure.get("qualifier") or "")
+        latest = _latest_time(measure)
+        retired = int(latest is None)
+        newest = -(latest or 0.0)
         if measure.get("parameter") == "level" and qualifier in LEVEL_QUALIFIERS:
-            rank = (LEVEL_QUALIFIERS.index(qualifier), measure.get("unitName") != "mASD")
-            levels.append(((rank[0], int(rank[1])), notation))
+            datum = int(measure.get("unitName") != "mASD")
+            levels.append(((LEVEL_QUALIFIERS.index(qualifier), retired, datum, newest), notation))
         elif measure.get("parameter") == "flow" and measure.get("unitName") == "m3/s":
             # A measure with no qualifier is the plain flow reading
-            flows.append((int(bool(qualifier)), notation))
+            flows.append(((retired, int(bool(qualifier)), newest), notation))
     level = min(levels)[1] if levels else None
     flow = min(flows)[1] if flows else None
     return level, flow
