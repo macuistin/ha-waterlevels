@@ -53,19 +53,17 @@ from .const import (
     CONF_STATION_INFO,
     CONF_STATION_NAME,
     DEFAULT_ALERT_STAGE,
-    DEFAULT_SCAN_INTERVAL,
     DEFAULT_STALE_HOURS,
     DOMAIN,
     FLOOD_STAGES,
     GROUP_LIST_URL,
-    MIN_SCAN_INTERVAL,
-    SEPA_SCAN_INTERVAL,
     SOURCE_EA,
-    SOURCE_OPW,
     SOURCE_SEPA,
     WATER_LEVEL,
 )
+from .coordinator import StationCoordinator
 from .ea_api import EnvironmentAgencyApi
+from .providers import provider_for
 from .sepa_api import SepaApi
 
 _LOGGER = logging.getLogger(__name__)
@@ -590,22 +588,22 @@ class WaterlevelOptionsFlow(config_entries.OptionsFlow):
     """Change how often a station updates and when it counts as stale."""
 
     @property
+    def _provider(self) -> type[StationCoordinator]:
+        """The entry's source, which says its own update intervals and options."""
+        return provider_for(self.config_entry.data.get(CONF_SOURCE))
+
+    @property
     def _default_interval(self) -> int:
-        """The source's own update interval, which SEPA stations make longer."""
-        return SEPA_SCAN_INTERVAL if self._is_sepa else DEFAULT_SCAN_INTERVAL
+        return self._provider.default_scan_interval
 
     @property
     def _min_interval(self) -> int:
-        return SEPA_SCAN_INTERVAL if self._is_sepa else MIN_SCAN_INTERVAL
-
-    @property
-    def _is_sepa(self) -> bool:
-        return bool(self.config_entry.data.get(CONF_SOURCE) == SOURCE_SEPA)
+        return self._provider.min_scan_interval
 
     @property
     def _is_opw(self) -> bool:
-        """Only OPW stations can look for sensors again; the other sources' are fixed."""
-        return bool(self.config_entry.data.get(CONF_SOURCE, SOURCE_OPW) == SOURCE_OPW)
+        """Only sources that can look for sensors again offer it; the others' are fixed."""
+        return self._provider.supports_redetect
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}

@@ -23,6 +23,7 @@ and don't claim a rule the code doesn't meet.
 | --- | --- |
 | `api.py` | `WaterlevelApi` and pure `parse_*` functions: every request to waterlevel.ie and all parsing |
 | `ea_api.py` | `EnvironmentAgencyApi` and its pure `parse_*` functions: every request to the Environment Agency API and its parsing |
+| `providers.py` | `PROVIDERS`: one coordinator class per country, keyed by the entry's `source`; a country says its own update interval, options (`supports_redetect`) and extra sensors (`extra_sensors()`) on its coordinator, and adds config flow steps. Adding a country touches its own files and this registry |
 | `coordinator.py` | `StationCoordinator`, what every source shares (kept readings, thresholds, `flood_stage()`, device hooks), and the OPW `WaterlevelCoordinator`: it reads the shared latest-readings feed (`LatestReadings`) and each station's CSVs every 15 minutes |
 | `ea_coordinator.py` | `EnvironmentAgencyCoordinator`: the shared English latest-readings feed and a station's recent level; thresholds from its stage scale |
 | `sepa_api.py`, `sepa_coordinator.py` | `SepaApi` and `SepaCoordinator`: SEPA's KiWIS time series API, one request per station per update; thresholds from the station's daily record |

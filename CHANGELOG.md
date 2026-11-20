@@ -14,6 +14,7 @@ What each release changed, newest first.
 - The integration is now called **Water Levels**, since it is no longer Irish only. Only the display name and logo change: the domain `water_levels`, unique ids, entity ids and device names are unchanged, so nothing needs redoing. The Integrations page and HACS show the new name.
 - `hacs.json` `country` is now `IE` and `GB`, as the integration reads English stations as well as Irish ones.
 - Internally, the readings, thresholds and flood-stage code every source shares is now a `StationCoordinator` base class that the Irish and English coordinators extend. Irish stations, their entity ids and unique ids are unchanged.
+- Internally, each country is now a provider (`providers.py`): its own coordinator, update interval, options and optional extra sensors, so a new country is added without touching the others. Nothing changes for Irish, English or Scottish stations.
 
 **Fixes**
 - The options form and the "could not read any recent data" message no longer name waterlevel.ie, since England and Scotland stations see them too. The options text now gives the update interval for each country. The Irish wording is a first draft, corrections welcome.

@@ -68,6 +68,9 @@ class SepaCoordinator(StationCoordinator):
             return {key: self.suggested[key] for key in THRESHOLD_ENTITIES}, "history"
         return {key: None for key in THRESHOLD_ENTITIES}, "fallback"
 
+    async def async_load_background(self) -> None:
+        await self.async_load_suggested_thresholds()
+
     async def async_load_suggested_thresholds(self) -> None:
         """Look up thresholds from the station's daily record, once.
 

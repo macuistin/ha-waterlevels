@@ -8,32 +8,16 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 
-from .const import (
-    CONF_AVAILABLE_SENSORS,
-    CONF_SOURCE,
-    DOMAIN,
-    SOURCE_EA,
-    SOURCE_OPW,
-    SOURCE_SEPA,
-)
-from .coordinator import StationCoordinator, WaterlevelConfigEntry, WaterlevelCoordinator
-from .ea_coordinator import EnvironmentAgencyCoordinator
-from .sepa_coordinator import SepaCoordinator
+from .const import CONF_AVAILABLE_SENSORS, CONF_SOURCE, DOMAIN
+from .coordinator import WaterlevelConfigEntry
+from .providers import provider_for
 
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.NUMBER]
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: WaterlevelConfigEntry) -> bool:  # noqa: C901
-    coordinator: StationCoordinator
-    source = entry.data.get(CONF_SOURCE, SOURCE_OPW)
-    if source == SOURCE_EA:
-        coordinator = EnvironmentAgencyCoordinator(hass, entry)
-    elif source == SOURCE_SEPA:
-        coordinator = SepaCoordinator(hass, entry)
-    else:
-        coordinator = WaterlevelCoordinator(hass, entry)
-        # Before the first update, so the percentile has its flows from the start
-        await coordinator.async_load_flow_percentiles()
+async def async_setup_entry(hass: HomeAssistant, entry: WaterlevelConfigEntry) -> bool:
+    coordinator = provider_for(entry.data.get(CONF_SOURCE))(hass, entry)
+    await coordinator.async_prepare()
     try:
         await coordinator.async_config_entry_first_refresh()
     except ConfigEntryNotReady:
@@ -51,21 +35,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: WaterlevelConfigEntry) -
             await hass.config_entries.async_reload(entry.entry_id)
 
     entry.async_on_unload(entry.add_update_listener(_async_entry_updated))
-    if isinstance(coordinator, WaterlevelCoordinator):
-        entry.async_create_background_task(
-            hass, _async_load_history(coordinator), f"{DOMAIN} history"
-        )
-    elif isinstance(coordinator, SepaCoordinator):
-        entry.async_create_background_task(
-            hass, coordinator.async_load_suggested_thresholds(), f"{DOMAIN} history"
-        )
+    entry.async_create_background_task(
+        hass, coordinator.async_load_background(), f"{DOMAIN} history"
+    )
     return True
-
-
-async def _async_load_history(coordinator: WaterlevelCoordinator) -> None:
-    """Look up what Hydro-Data holds about the station, once: thresholds, then details."""
-    await coordinator.async_load_suggested_thresholds()
-    await coordinator.async_load_station_info()
 
 
 def _reload_key(entry: WaterlevelConfigEntry) -> tuple[dict[str, Any], tuple[str, ...]]:
