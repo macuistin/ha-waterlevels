@@ -1,0 +1,117 @@
+# Changelog
+
+What each release changed, newest first.
+
+## Unreleased
+
+**Added**
+- **England stations**, from the Environment Agency's real-time flood-monitoring API (Open Government Licence). A new **Find stations in England (Environment Agency)** option when adding a station finds gauges near a location. Each is its own device type (manufacturer Environment Agency) with the same entity names as an Irish station: Water Level, Water Level Trend, Discharge where measured, Flood Stage, Flood Alert, the three thresholds, Station Information, Last Reading, Data Age and Data Stale. Flood thresholds start from the station's stage scale; a station without one leaves the flood entities unknown until you set thresholds. See [Supported stations](README.md#supported-stations).
+- **Scotland stations**, from SEPA's time series API (Open Government Licence, no account). A new **Find stations in Scotland (SEPA)** option finds gauges near a location. They are a device type of their own (manufacturer SEPA) with the same entity names as an Irish station, and flood thresholds start from the percentiles of the station's own daily record. Scottish stations update every 30 minutes (the options won't go lower), and the setup steps warn about SEPA's daily limit on anonymous access per IP address. See [Supported stations](README.md#supported-stations).
+- A Station Information state `stage_scale`, with an Irish translation (a first draft, corrections welcome).
+- **Flow Percentile** sensor: where the current Discharge sits in the station's flow record, from the flow percentiles OPW Hydro-Data publishes, where 50 is the median. It appears at stations that have Discharge and a published flow record, and comes with an Irish translation. See [Flow percentile](README.md#flow-percentile).
+
+**Changed**
+- The integration is now called **Water Levels**, since it is no longer Irish only. Only the display name and logo change: the domain `water_levels`, unique ids, entity ids and device names are unchanged, so nothing needs redoing. The Integrations page and HACS show the new name.
+- `hacs.json` `country` is now `IE` and `GB`, as the integration reads English stations as well as Irish ones.
+- Internally, the readings, thresholds and flood-stage code every source shares is now a `StationCoordinator` base class that the Irish and English coordinators extend. Irish stations, their entity ids and unique ids are unchanged.
+
+**Upgrading**
+- Nothing changes for existing Irish stations.
+- Stations you already have get the new sensor the next time Home Assistant starts or the integration reloads; you don't need to check for new sensors.
+
+## v1.5.1
+
+A small release that tells HACS the integration is for Ireland only, which it asks of repositories limited to one country before listing them in the default repositories. Nothing changes in Home Assistant.
+
+**Changed**
+- `hacs.json` now sets `country` to `IE`, as HACS asks of repositories limited to one country, ahead of listing in the HACS default repositories.
+
+## v1.5.0
+
+Stations now start with flood thresholds taken from their OPW alarm levels, so you don't have to research them, and a new Station Information diagnostic sensor shows where the defaults came from. Thresholds you have set are kept.
+
+**Added**
+- Default flood thresholds from each station's OPW alarm levels: Watch is the level exceeded 1% of the time, Alert the median yearly highest level and Serious the highest yearly maximum on record. See [Default thresholds from alarm levels](README.md#default-thresholds-from-alarm-levels).
+- A **Station Information** diagnostic sensor showing where the defaults came from (`alarm_levels`, `history` or `fallback`), the station's details, its alarm levels and the default levels. Downloaded diagnostics include them too.
+
+**Changed**
+- Alarm levels now take priority over the thresholds suggested from the station's daily record, which are used when a station has no alarm levels.
+
+**Upgrading**
+- Thresholds you have set, and ones Home Assistant restored from before, are kept. A station whose thresholds you never changed may move to its alarm levels the next time it is set up fresh.
+
+## v1.4.0
+
+Sensors now keep showing their last reading when a station stops reporting, instead of going unavailable, and Flood Stage shows more about each station from OPW Hydro-Data. Read the first Upgrading note if an automation triggers on `unavailable`.
+
+**Added**
+- Flood Stage now shows what OPW Hydro-Data publishes about the station: `status`, `catchment`, `catchment_area_km2`, `river_basin_district` and `station_class`, plus the station's `median_annual_maximum_m` and `highest_annual_maximum_m` levels from its alarm-level file, in the same units as Water Level. See [Station details and alarm levels](README.md#station-details-and-alarm-levels).
+
+**Fixes**
+- Sensors no longer go unavailable when a station stops reporting. They keep the last known value however long the outage lasts. Each reading has a `last_reported` attribute and a new `stale` attribute (true once it is older than the stale option), and Flood Stage and Flood Alert carry the same two attributes for the water level they use. Last Reading (the existing timestamp entity) and Data Age show when the station last reported.
+
+**Upgrading**
+- Entities used to become unavailable after 3 hours without a reading; they now keep showing the last value. An automation that triggered on `unavailable` should trigger on Data Stale turning on, or check the `stale` attribute, instead. Flood Alert can stay on or off from an old reading during a long outage, so check `stale` if that matters.
+- Nothing to do. Stations you already have look the details up once, shortly after Home Assistant starts. Your thresholds are unchanged.
+
+## v1.3.0
+
+Adds a draft Irish (Gaeilge) translation and completes the Platinum tier of the Home Assistant quality scale with strict typing. Nothing changes in how the integration behaves, and there is nothing to do when upgrading.
+
+**Added**
+- An Irish (Gaeilge) translation. It is a first draft and corrections from fluent speakers are welcome.
+
+**Changed**
+- The code is now strictly typed and checked with mypy in CI, which completes the Platinum tier of the Home Assistant quality scale. Nothing changes in how the integration behaves.
+
+## v1.2.1
+
+**Changed**
+- Temperature is disabled by default on newly added stations, because it reads the gauge housing rather than the water. Enable it from the device page if you want it. Stations you already have keep it.
+
+**Fixes**
+- A station that has stopped reporting, such as one whose last reading is days old, now finishes setting up instead of failing with "no reading newer than 3 hours". Its readings show as unavailable, Data Stale is on, and Last Reading shows when it last reported. It updates on its own once the gauge reports again.
+- **Browse by river** could say it couldn't load the river list. It now reads waterlevel.ie's river and station links whether they are relative or absolute.
+
+## v1.2.0
+
+The first tagged release. It reads one shared OPW feed instead of a file per sensor, keeps readings through short outages, suggests flood thresholds from each station's own history, and adds discharge, a level trend, station options, a "near me" search and a flood warning blueprint. Home Assistant 2025.2.0 or newer is required. After upgrading, compare your flood thresholds with their new `suggested_value` attribute, because existing stations keep the thresholds they had.
+
+**Added**
+- Find stations near a location when adding a station. It starts at your home location with a 15 km radius and lists stations closest first, with their distance.
+- Flood thresholds suggested from each station's OPW Hydro-Data record: the daily mean levels exceeded on 5%, 1% and 0.1% of days. Thresholds you have never set move to them; ones you have set are kept. Each threshold shows a `suggested_value` attribute, and Flood Stage shows `typical_level_m` and `record_daily_mean_m`. See [Number Entities](README.md#number-entities-flood-thresholds).
+- **Water Level Trend** (m/h), fitted over the last 3 hours of readings, and **Discharge** (m³/s) from OPW Hydro-Data where the station still reports flow.
+- **Last Reading**, **Data Age** and **Data Stale**, which show how fresh a station's data is and stay available during an outage.
+- Station options under **Configure**: update interval (15 to 180 minutes), how long without a reading counts as stale (default 3 hours), the lowest stage that turns Flood Alert on (default watch), and re-checking the station for new sensors.
+- A **River flood warning** automation blueprint, a dashboard example and a warning that this is not a flood warning service.
+- Diagnostics download, translated entity names and states, and icons for every entity.
+- A brand icon and logo.
+
+**Changed**
+- The integration is called **Water Level IE**, and the README says it is an unofficial community integration that reads waterlevel.ie's open data. The domain, unique ids and entity ids are unchanged.
+- Current readings come from OPW's latest-readings file, downloaded at most once every 15 minutes and shared by all your stations. Each station still reads its week of water levels, and its daily summary at most once an hour.
+- Through an outage, sensors keep their last reading for up to 3 hours (the stale option), then become unavailable. Flood Stage and Flood Alert are unknown, not "normal", when there is no water level.
+- Adding a station starts with a menu: near a location, by river, or by station number. A station number can be typed with or without leading zeros, or pasted as the station's page address. Stations you've already added are left out of the lists.
+- The `last_reported` attribute is ISO 8601 with a time zone, for example `2026-10-19T18:15:00+00:00`.
+- Water levels use the distance device class, so they can be shown in other length units. Battery Voltage and Signal Strength are diagnostic and disabled by default, and the thresholds are configuration entities.
+- Changing a threshold updates Flood Stage and Flood Alert straight away, without downloading anything.
+
+**Fixes**
+- Errors in the setup flow stay on the step that caused them, and an unreachable river list no longer leaves an empty, unsubmittable dropdown.
+- Coordinates are found whether or not the station number is zero-padded.
+
+**Upgrading**
+- Home Assistant 2025.2.0 or newer is required.
+- Stations you already have keep their thresholds, including the 1.5, 2.5 and 3.5 m defaults, because Home Assistant restores them. Compare each with its new `suggested_value` attribute on the device page and set the ones you want. Stations you add from now on start at the suggestions.
+- To get Discharge or another new sensor on a station you already have, open **Configure** and tick **Check the station for new sensors**.
+- An automation that waited for `unavailable` on Water Level now fires after 3 hours without data (the stale option), not on the first failed update. Data Stale is the clearer trigger.
+
+## v1.1.0
+
+**Fixes**
+- GPS coordinates are found for every station, and the setup dropdowns work.
+- The flood thresholds have defaults based on OPW engineering data for the River Barrow.
+
+## v1.0
+
+The first version: water level, temperature, battery and signal sensors for any waterlevel.ie station, daily mean, min and max, a flood stage with adjustable thresholds, and a flood alert.
