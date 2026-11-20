@@ -98,6 +98,9 @@ def pick_measures(measures: object) -> tuple[str | None, str | None]:
     """
     levels: list[tuple[tuple[int, int, int, float], str]] = []
     flows: list[tuple[tuple[int, int, float], str]] = []
+    # The API sends a lone measure as an object, not a one-item list
+    if isinstance(measures, dict):
+        measures = [measures]
     for measure in measures if isinstance(measures, list) else []:
         if not isinstance(measure, dict) or not measure.get("@id"):
             continue
