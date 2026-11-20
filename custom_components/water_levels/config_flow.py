@@ -120,7 +120,7 @@ def _unique_id(country: str, ref: str) -> str:
 
 
 def _found_nearby(
-    location: dict[str, Any], configured: set[str], stations: Iterable[Found]
+    location: dict[str, Any], configured: set[str | None], stations: Iterable[Found]
 ) -> list[Found]:
     """The stations inside the search radius that aren't added yet, closest first."""
     nearby = []
@@ -136,7 +136,7 @@ def _found_nearby(
 
 
 async def _search_ireland(
-    hass: HomeAssistant, location: dict[str, Any], configured: set[str]
+    hass: HomeAssistant, location: dict[str, Any], configured: set[str | None]
 ) -> list[Found]:
     """Irish stations near a location. Raises WaterlevelError if waterlevel.ie is down."""
     stations = await WaterlevelApi(async_get_clientsession(hass)).stations()
@@ -148,7 +148,7 @@ async def _search_ireland(
 
 
 async def _search_england(
-    hass: HomeAssistant, location: dict[str, Any], configured: set[str]
+    hass: HomeAssistant, location: dict[str, Any], configured: set[str | None]
 ) -> list[Found]:
     """English stations near a location. Raises WaterlevelError if the API is down."""
     stations = await EnvironmentAgencyApi(async_get_clientsession(hass)).stations_near(
@@ -160,7 +160,7 @@ async def _search_england(
 
 
 async def _search_scotland(
-    hass: HomeAssistant, location: dict[str, Any], configured: set[str]
+    hass: HomeAssistant, location: dict[str, Any], configured: set[str | None]
 ) -> list[Found]:
     """Scottish stations near a location. Raises WaterlevelError if SEPA is down."""
     stations = await SepaApi(async_get_clientsession(hass)).stations()
