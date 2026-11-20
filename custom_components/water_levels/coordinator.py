@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import logging
 from typing import Any
 
+from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -135,6 +136,8 @@ class StationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # Update interval in minutes: the default, and the shortest the options allow
     default_scan_interval: int = DEFAULT_SCAN_INTERVAL
     min_scan_interval: int = MIN_SCAN_INTERVAL
+    # Whether the options can look the station's sensors up again (a source's sensors may be fixed)
+    supports_redetect: bool = False
 
     def __init__(self, hass: HomeAssistant, entry: WaterlevelConfigEntry) -> None:
         self.station: str = entry.data[CONF_STATION]
@@ -194,6 +197,16 @@ class StationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def configuration_url(self) -> str | None:
         """A page about the station on its publisher's site."""
         return STATION_PAGE_URL.format(station_padded=self.station.zfill(10))
+
+    async def async_prepare(self) -> None:
+        """Load what the first update needs. A source overrides this if it has something."""
+
+    async def async_load_background(self) -> None:
+        """Look up slow, optional details after setup. A source overrides this when it has any."""
+
+    def extra_sensors(self) -> list[SensorEntity]:
+        """Sensors only this source has, added to the ones every source shares."""
+        return []
 
     def default_thresholds(self) -> tuple[dict[str, float | None], str]:
         """The thresholds used until the user sets their own, and where they come from.
@@ -276,6 +289,8 @@ class StationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 class WaterlevelCoordinator(StationCoordinator):
     """Coordinator that fetches data for all sensors on one OPW station."""
 
+    supports_redetect = True
+
     def __init__(self, hass: HomeAssistant, entry: WaterlevelConfigEntry) -> None:
         super().__init__(hass, entry)
         self.api = WaterlevelApi(async_get_clientsession(hass))
@@ -287,6 +302,15 @@ class WaterlevelCoordinator(StationCoordinator):
         self._summaries_fetched: datetime | None = None
         # Only attempt the GeoJSON coordinate fetch once per session
         self._coord_fetch_attempted: bool = False
+
+    async def async_prepare(self) -> None:
+        # Before the first update, so the percentile has its flows from the start
+        await self.async_load_flow_percentiles()
+
+    async def async_load_background(self) -> None:
+        """Look up what Hydro-Data holds about the station, once: thresholds, then details."""
+        await self.async_load_suggested_thresholds()
+        await self.async_load_station_info()
 
     def default_thresholds(self) -> tuple[dict[str, float | None], str]:
         """The thresholds used until the user sets their own, and where they come from.

@@ -185,6 +185,7 @@ async def async_setup_entry(
         ]
     if any(key in SENSOR_TYPES for key in coordinator.available_sensors):
         entities += [LastReadingSensor(coordinator), DataAgeSensor(coordinator)]
+    entities += coordinator.extra_sensors()
     async_add_entities(entities)
 
 
