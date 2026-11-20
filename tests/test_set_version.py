@@ -82,17 +82,29 @@ def test_release_workflow_checks_the_version() -> None:
     assert "set_version.py --notes" in workflow
 
 
-def test_release_workflow_can_be_run_by_hand() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+def _workflow() -> str:
+    return (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+
+
+def test_release_workflow_is_run_by_hand_from_main() -> None:
+    workflow = _workflow()
     assert "workflow_dispatch:" in workflow
-    # The typed version reaches the shell through env, never interpolated into a script
-    assert "VERSION: ${{ inputs.version }}" in workflow
-    assert workflow.count("${{ inputs.version }}") == 1
+    # A pushed tag would skip the checks on the commit, so only a manual run releases
+    assert "push:" not in workflow
+    assert "inputs." not in workflow
     assert "refs/heads/main" in workflow
 
 
+def test_release_workflow_refuses_a_tagged_version_and_a_red_commit() -> None:
+    workflow = _workflow()
+    assert "already exists. A tag is never moved" in workflow
+    assert "set_version.py --check" in workflow
+    for needed in ("lint", "typing", "Tests (Home Assistant", "validate", "hacs"):
+        assert f'"{needed}"' in workflow
+
+
 def test_every_pre_release_version_publishes_a_pre_release() -> None:
-    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     # set_version.py accepts a, b and rc versions; each must be marked a pre-release
     assert "(?:a|b|rc)" in set_version.VERSION
-    assert '=~ (a|b|rc)[0-9]+$ ]]; then prerelease="--prerelease"' in workflow
+    assert "(a|b|rc)[0-9]+$" in _workflow()
+    assert "--prerelease" in _workflow()

@@ -384,7 +384,13 @@ Run the same checks as CI before opening a PR:
 ```bash
 pip install -r requirements_test.txt
 ruff check . && ruff format --check .
+mypy
 pytest --cov
 ```
+
+The repository holds the Platinum tier of the Home Assistant quality scale and meets the HACS
+standard. [CLAUDE.md](CLAUDE.md) lists the rules each change keeps, and
+[quality_scale.yaml](custom_components/water_levels/quality_scale.yaml) says how each rule is met.
+More on the project is in the [docs folder](docs/README.md).
 
 CI also runs [hassfest](https://developers.home-assistant.io/blog/2020/04/16/hassfest/) and the [HACS action](https://hacs.xyz/docs/publish/action/), and runs the tests against the minimum Home Assistant version in `hacs.json` as well as the latest release.

@@ -4,9 +4,9 @@ Rules for AI assistants and contributors working in this repo.
 
 ## What this is
 
-A Home Assistant custom integration, distributed through HACS, that reads OPW river gauge
-data published on waterlevel.ie Environment Agency (England) and SEPA (Scotland) river gauge data. It is
-unofficial: never present it as made or endorsed by waterlevel.ie, the OPW, the Environment
+A Home Assistant custom integration, distributed through HACS, that reads river gauge data
+published by OPW on waterlevel.ie (Ireland), the Environment Agency (England) and SEPA (Scotland).
+It is unofficial: never present it as made or endorsed by waterlevel.ie, the OPW, the Environment
 Agency or SEPA, and never copy their logos. The display name is "Water Levels";
 the domain is `water_levels`.
 
@@ -44,11 +44,27 @@ and don't claim a rule the code doesn't meet.
   **Changed**, **Fixes** and **Upgrading**.
 - Releasing: rename `## Unreleased` to `## vX.Y.Z` with a sentence or two on what the release
   does, run `python scripts/set_version.py X.Y.Z`, then `--check vX.Y.Z`, in a release PR.
-  After it merges, the maintainer runs the Release workflow on main with `X.Y.Z` (Actions >
-  Release > Run workflow), or pushes the tag `vX.Y.Z` on main, and
-  `.github/workflows/release.yml` tags main if needed and publishes the GitHub release from
-  the changelog section (an `a`, `b` or `rc` version publishes a pre-release). Never push a tag,
-  run the workflow or create a release yourself.
+  After it merges, the maintainer runs Actions > Release > Run workflow on main.
+  `.github/workflows/release.yml` takes the version from `manifest.json`, tags that commit
+  `vX.Y.Z` and publishes the GitHub release from the changelog section (an `a`, `b` or `rc`
+  version publishes a pre-release). It refuses a run from another branch, a version whose tag
+  exists, files that disagree, a missing changelog section and a commit whose checks are not all
+  green. Never run it, push a tag or create a release yourself.
+
+## Working agreements
+
+- Docs, strings and workflow follow `.claude/rules/docs-and-style.md` (UK English, generic, the
+  unofficial notice, Conventional Commits, stacked PRs with merge commits).
+- Python limits and typing are in `.claude/rules/python-style.md`; ruff enforces them.
+- Search the existing constants before adding a config option, constant or entity. Say so in the
+  pull request when you add one.
+- Tests drive behaviour. Do not read a source file and assert a string in it, except the
+  standards checks in `tests/test_standards.py`.
+- Never rebase, amend or force-push a branch with an open PR. Never merge a PR or cut a release
+  unless the maintainer asks.
+- Improve these instructions as you work. When a task costs you time on something the next
+  session should already know, add it here or to a rule in the same PR.
+- `AGENTS.md` is a symlink to this file.
 
 ## Standards
 

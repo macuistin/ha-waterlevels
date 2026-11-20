@@ -136,7 +136,7 @@ def parse_latest(geo: dict[str, Any]) -> dict[str, dict[str, Reading]]:
     return latest
 
 
-def parse_hydro_series(payload: object, shortname: str | None = None) -> list[Reading]:
+def parse_hydro_series(payload: object, shortname: str | None = None) -> list[Reading]:  # noqa: C901
     """Parse an OPW Hydro-Data series file into readings, oldest first.
 
     The file is a list of series ({ts_shortname, columns, data: [[time, value, ...]]}).
@@ -395,7 +395,7 @@ class WaterlevelApi:
         """Stations on a river group as {station: name}."""
         return parse_group_stations(await self._get_text(GROUP_URL.format(group_id=group_id)))
 
-    async def detect_station(self, station: str) -> tuple[str | None, list[str]]:
+    async def detect_station(self, station: str) -> tuple[str | None, list[str]]:  # noqa: C901, PLR0912, PLR0915
         """Return (station name from its page, available sensor keys).
 
         Sensors are read from the station page's links; if the page can't be read,

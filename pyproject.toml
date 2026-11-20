@@ -40,6 +40,8 @@ select = [
     "LOG",          # logging misuse
     "PIE",
     "RUF",
+    "C901", "PLR0912", "PLR0913", "PLR0915",  # Clean Code limits, set below
+    "FBT001", "FBT002",                       # no boolean flag arguments
 ]
 ignore = [
     "RUF012",  # Home Assistant class attributes are mutable by design
@@ -50,3 +52,16 @@ ignore = [
 force-sort-within-sections = true
 known-first-party = ["custom_components.water_levels"]
 combine-as-imports = true
+
+# Clean Code limits. New code stays inside them. Existing offenders carry an inline
+# `# noqa: <rule>` marker, and the change that fixes the function deletes it.
+[tool.ruff.lint.mccabe]
+max-complexity = 8
+
+[tool.ruff.lint.pylint]
+max-args = 4
+max-statements = 30
+max-branches = 10
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["PLR0913", "FBT001", "FBT002"]

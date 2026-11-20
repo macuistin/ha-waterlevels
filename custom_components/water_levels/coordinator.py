@@ -385,7 +385,7 @@ class WaterlevelCoordinator(StationCoordinator):
             data={**self.config_entry.data, CONF_FLOW_PERCENTILES: percentiles},
         )
 
-    async def _async_update_data(self) -> dict[str, Any]:
+    async def _async_update_data(self) -> dict[str, Any]:  # noqa: C901, PLR0912, PLR0915
         data: dict[str, Any] = {}
         # Reset per-update metadata — prevents stale attrs surviving a failed fetch
         self.sensor_attrs = {}

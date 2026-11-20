@@ -23,7 +23,7 @@ from .sepa_coordinator import SepaCoordinator
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.NUMBER]
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: WaterlevelConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: WaterlevelConfigEntry) -> bool:  # noqa: C901
     coordinator: StationCoordinator
     source = entry.data.get(CONF_SOURCE, SOURCE_OPW)
     if source == SOURCE_EA:
