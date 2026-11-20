@@ -7,7 +7,8 @@
         "menu_options": {
           "ireland": "Éire",
           "england": "Sasana",
-          "scotland": "Albain"
+          "scotland": "Albain",
+          "anywhere": "Cuardaigh gach tír"
         }
       },
       "ireland": {
@@ -108,6 +109,26 @@
         "data_description": {
           "station": "An stáisiún tomhais le cur leis. Is gléas ar leith gach stáisiún."
         }
+      },
+      "anywhere": {
+        "title": "Aimsigh stáisiúin in aon áit",
+        "description": "Roghnaigh áit agus ga cuardaigh chun stáisiúin in Éirinn, i Sasana agus in Albain a aimsiú in éineacht. Tosaíonn sé ag suíomh do bhaile. Tabhair faoi deara: cuireann SEPA teorainn leis an méid sonraí a fhéadann úsáideoirí gan chlárú a léamh gach lá, roinnte ag gach rud ar do sheoladh idirlín, agus ní deir sé an bhfuil fáilte roimh pholladh rialta. Mar sin nuashonraítear stáisiúin na hAlban gach 30 nóiméad, seachas gach 15.",
+        "data": {
+          "location": "Suíomh"
+        },
+        "data_description": {
+          "location": "Tarraing an biorán nó athraigh an ciorcal chun limistéar eile a chuardach. Cuardaítear gach tír, mar sin ní bhacann teorainn."
+        }
+      },
+      "anywhere_station": {
+        "title": "Roghnaigh stáisiún",
+        "description": "Stáisiúin tomhais in Éirinn, i Sasana agus in Albain sa limistéar sin, an ceann is gaire ar dtús. Ní liostaítear stáisiúin atá curtha leis cheana agat. Nuashonraíonn stáisiúin na hAlban gach 30 nóiméad mar gheall ar theorainn laethúil sonraí SEPA.",
+        "data": {
+          "station": "Stáisiún"
+        },
+        "data_description": {
+          "station": "An stáisiún tomhais le cur leis. Is gléas ar leith gach stáisiún."
+        }
       }
     },
     "error": {
@@ -120,7 +141,8 @@
       "england_unreachable": "Níorbh fhéidir teacht ar sheirbhís monatóireachta tuilte na Gníomhaireachta Comhshaoil. Seiceáil do cheangal idirlín agus bain triail eile as.",
       "england_station_not_found": "Ní bhfuarthas aon sonraí leibhéal uisce don stáisiún sin.",
       "scotland_unreachable": "Níorbh fhéidir teacht ar sheirbhís sraitheanna ama SEPA. Seiceáil do cheangal idirlín agus bain triail eile as. Cuireann SEPA teorainn laethúil le hiarratais gan chlárú, mar sin b'fhéidir go bhfuil an teorainn sroichte.",
-      "scotland_station_not_found": "Ní bhfuarthas aon sonraí leibhéal uisce don stáisiún sin."
+      "scotland_station_not_found": "Ní bhfuarthas aon sonraí leibhéal uisce don stáisiún sin.",
+      "anywhere_unreachable": "Níorbh fhéidir teacht ar aon cheann de sheirbhísí na dtrí thír. Seiceáil do cheangal idirlín agus bain triail eile as."
     },
     "abort": {
       "already_configured": "Tá an stáisiún seo cumraithe cheana.",

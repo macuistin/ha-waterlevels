@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass, field, replace
 import logging
 import re
 from typing import Any
@@ -9,7 +12,7 @@ from typing import Any
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.const import CONF_LOCATION, CONF_RADIUS
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     BooleanSelector,
@@ -58,6 +61,7 @@ from .const import (
     FLOOD_STAGES,
     GROUP_LIST_URL,
     SOURCE_EA,
+    SOURCE_OPW,
     SOURCE_SEPA,
     WATER_LEVEL,
 )
@@ -89,6 +93,102 @@ def normalize_station(raw: str) -> str | None:
     if int(digits) == 0:
         return None
     return str(int(digits)).zfill(5)
+
+
+@dataclass(frozen=True)
+class Found:
+    """A station from a country's list, and how far it is from a search location."""
+
+    country: str
+    ref: str
+    name: str
+    latitude: float | None
+    longitude: float | None
+    river: str = ""
+    # The Environment Agency or SEPA station as their API gave it; empty for Ireland
+    data: dict[str, Any] = field(default_factory=dict)
+    distance: float = 0.0
+
+
+# English names of the countries, for the list that mixes them
+COUNTRY_NAMES = {SOURCE_OPW: "Ireland", SOURCE_EA: "England", SOURCE_SEPA: "Scotland"}
+
+
+def _unique_id(country: str, ref: str) -> str:
+    """A station's config entry unique id: Irish ones have no country in them."""
+    return f"{DOMAIN}_{ref}" if country == SOURCE_OPW else f"{DOMAIN}_{country}_{ref}"
+
+
+def _found_nearby(
+    location: dict[str, Any], configured: set[str], stations: Iterable[Found]
+) -> list[Found]:
+    """The stations inside the search radius that aren't added yet, closest first."""
+    nearby = []
+    for station in stations:
+        if _unique_id(station.country, station.ref) in configured:
+            continue
+        dist = distance(
+            location[CONF_LATITUDE], location[CONF_LONGITUDE], station.latitude, station.longitude
+        )
+        if dist is not None and dist <= location[CONF_RADIUS]:
+            nearby.append(replace(station, distance=dist))
+    return sorted(nearby, key=lambda found: found.distance)
+
+
+async def _search_ireland(
+    hass: HomeAssistant, location: dict[str, Any], configured: set[str]
+) -> list[Found]:
+    """Irish stations near a location. Raises WaterlevelError if waterlevel.ie is down."""
+    stations = await WaterlevelApi(async_get_clientsession(hass)).stations()
+    return _found_nearby(
+        location,
+        configured,
+        (Found(SOURCE_OPW, sid, name, lat, lon) for sid, (name, lat, lon) in stations.items()),
+    )
+
+
+async def _search_england(
+    hass: HomeAssistant, location: dict[str, Any], configured: set[str]
+) -> list[Found]:
+    """English stations near a location. Raises WaterlevelError if the API is down."""
+    stations = await EnvironmentAgencyApi(async_get_clientsession(hass)).stations_near(
+        location[CONF_LATITUDE],
+        location[CONF_LONGITUDE],
+        min(location[CONF_RADIUS] / 1000, MAX_EA_DISTANCE_KM),
+    )
+    return _found_nearby(location, configured, (_found(SOURCE_EA, item) for item in stations))
+
+
+async def _search_scotland(
+    hass: HomeAssistant, location: dict[str, Any], configured: set[str]
+) -> list[Found]:
+    """Scottish stations near a location. Raises WaterlevelError if SEPA is down."""
+    stations = await SepaApi(async_get_clientsession(hass)).stations()
+    return _found_nearby(location, configured, (_found(SOURCE_SEPA, item) for item in stations))
+
+
+def _found(country: str, station: dict[str, Any]) -> Found:
+    """A station from the Environment Agency or SEPA, as a Found."""
+    return Found(
+        country,
+        station["station"],
+        station["name"],
+        station["latitude"],
+        station["longitude"],
+        station["river"],
+        station,
+    )
+
+
+def _label_with_country(found: Found) -> str:
+    """A station's list label with its country, for lists that mix countries."""
+    return f"{_station_label(found)}, {COUNTRY_NAMES[found.country]}"
+
+
+def _station_label(found: Found) -> str:
+    """How a station reads in a list: name, river, number and distance."""
+    river = f", {found.river}" if found.river else ""
+    return f"{found.name}{river} ({found.ref}), {found.distance / 1000:.1f} km"
 
 
 async def _detect_station(
@@ -164,13 +264,13 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._groups: dict[str, str] = {}
         self._selected_group: str | None = None
         self._stations: dict[str, str] = {}
-        self._distances: dict[str, float] = {}
-        self._ea_stations: dict[str, dict[str, Any]] = {}
-        self._sepa_stations: dict[str, dict[str, Any]] = {}
+        self._found: dict[str, Found] = {}
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Ask which country the station is in."""
-        return self.async_show_menu(step_id="user", menu_options=["ireland", "england", "scotland"])
+        return self.async_show_menu(
+            step_id="user", menu_options=["ireland", "england", "scotland", "anywhere"]
+        )
 
     async def async_step_ireland(
         self, user_input: dict[str, Any] | None = None
@@ -183,38 +283,17 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="ireland", menu_options=["nearby", "river", "station_number"]
         )
 
-    async def async_step_nearby(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Pick a location and radius (the home location by default)."""
-        errors: dict[str, str] = {}
-        if user_input is not None:
-            location = user_input[CONF_LOCATION]
-            try:
-                stations = await WaterlevelApi(async_get_clientsession(self.hass)).stations()
-            except WaterlevelError as err:
-                _LOGGER.warning("Failed to fetch the station list: %s", err)
-                errors["base"] = "cannot_connect"
-            else:
-                configured = self._async_current_ids()
-                nearby = []
-                for sid, (name, lat, lon) in stations.items():
-                    if f"{DOMAIN}_{sid}" in configured:
-                        continue
-                    dist = distance(location[CONF_LATITUDE], location[CONF_LONGITUDE], lat, lon)
-                    if dist is not None and dist <= location[CONF_RADIUS]:
-                        nearby.append((dist, sid, name))
-                nearby.sort()
-                if nearby:
-                    self._stations = {sid: name for _, sid, name in nearby}
-                    self._distances = {sid: dist for dist, sid, _ in nearby}
-                    return await self.async_step_nearby_station()
-                errors["base"] = "no_nearby_stations"
+    def _location_form(
+        self, step_id: str, user_input: dict[str, Any] | None, errors: dict[str, str]
+    ) -> ConfigFlowResult:
+        """The location and radius form every search step shows (the home location by default)."""
         default = (user_input or {}).get(CONF_LOCATION) or {
             CONF_LATITUDE: self.hass.config.latitude,
             CONF_LONGITUDE: self.hass.config.longitude,
             CONF_RADIUS: DEFAULT_NEARBY_RADIUS,
         }
         return self.async_show_form(
-            step_id="nearby",
+            step_id=step_id,
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_LOCATION, default=default): LocationSelector(
@@ -224,6 +303,49 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
             errors=errors,
         )
+
+    def _station_form(
+        self,
+        step_id: str,
+        errors: dict[str, str],
+        label: Callable[[Found], str] = _station_label,
+    ) -> ConfigFlowResult:
+        """The list of stations found by a search, closest first, with how far each is."""
+        return self.async_show_form(
+            step_id=step_id,
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_STATION): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[
+                                SelectOptionDict(value=key, label=label(found))
+                                for key, found in self._found.items()
+                            ],
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_nearby(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Pick a location and radius (the home location by default)."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            try:
+                found = await _search_ireland(
+                    self.hass, user_input[CONF_LOCATION], self._async_current_ids()
+                )
+            except WaterlevelError as err:
+                _LOGGER.warning("Failed to fetch the station list: %s", err)
+                errors["base"] = "cannot_connect"
+            else:
+                if found:
+                    self._found = {item.ref: item for item in found}
+                    return await self.async_step_nearby_station()
+                errors["base"] = "no_nearby_stations"
+        return self._location_form("nearby", user_input, errors)
 
     async def async_step_nearby_station(
         self, user_input: dict[str, Any] | None = None
@@ -233,30 +355,11 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             station = user_input[CONF_STATION]
             result = await self._async_add_station(
-                station, errors, name_hint=self._stations.get(station)
+                station, errors, name_hint=self._found[station].name
             )
             if result is not None:
                 return result
-        return self.async_show_form(
-            step_id="nearby_station",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_STATION): SelectSelector(
-                        SelectSelectorConfig(
-                            options=[
-                                SelectOptionDict(
-                                    value=sid,
-                                    label=f"{name} ({sid}), {self._distances[sid] / 1000:.1f} km",
-                                )
-                                for sid, name in self._stations.items()
-                            ],
-                            mode=SelectSelectorMode.DROPDOWN,
-                        )
-                    ),
-                }
-            ),
-            errors=errors,
-        )
+        return self._station_form("nearby_station", errors)
 
     async def async_step_england(
         self, user_input: dict[str, Any] | None = None
@@ -264,54 +367,19 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Pick a location and radius to look for Environment Agency stations in England."""
         errors: dict[str, str] = {}
         if user_input is not None:
-            location = user_input[CONF_LOCATION]
             try:
-                stations = await EnvironmentAgencyApi(
-                    async_get_clientsession(self.hass)
-                ).stations_near(
-                    location[CONF_LATITUDE],
-                    location[CONF_LONGITUDE],
-                    min(location[CONF_RADIUS] / 1000, MAX_EA_DISTANCE_KM),
+                found = await _search_england(
+                    self.hass, user_input[CONF_LOCATION], self._async_current_ids()
                 )
             except WaterlevelError as err:
                 _LOGGER.warning("Failed to fetch the Environment Agency station list: %s", err)
                 errors["base"] = "england_unreachable"
             else:
-                configured = self._async_current_ids()
-                nearby = []
-                for station in stations:
-                    if f"{DOMAIN}_ea_{station['station']}" in configured:
-                        continue
-                    dist = distance(
-                        location[CONF_LATITUDE],
-                        location[CONF_LONGITUDE],
-                        station["latitude"],
-                        station["longitude"],
-                    )
-                    if dist is not None and dist <= location[CONF_RADIUS]:
-                        nearby.append((dist, station))
-                nearby.sort(key=lambda found: found[0])
-                if nearby:
-                    self._ea_stations = {station["station"]: station for _, station in nearby}
-                    self._distances = {station["station"]: dist for dist, station in nearby}
+                if found:
+                    self._found = {item.ref: item for item in found}
                     return await self.async_step_england_station()
                 errors["base"] = "no_nearby_stations"
-        default = (user_input or {}).get(CONF_LOCATION) or {
-            CONF_LATITUDE: self.hass.config.latitude,
-            CONF_LONGITUDE: self.hass.config.longitude,
-            CONF_RADIUS: DEFAULT_NEARBY_RADIUS,
-        }
-        return self.async_show_form(
-            step_id="england",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_LOCATION, default=default): LocationSelector(
-                        LocationSelectorConfig(radius=True)
-                    ),
-                }
-            ),
-            errors=errors,
-        )
+        return self._location_form("england", user_input, errors)
 
     async def async_step_england_station(
         self, user_input: dict[str, Any] | None = None
@@ -319,46 +387,10 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Pick one of the Environment Agency stations found nearby, closest first."""
         errors: dict[str, str] = {}
         if user_input is not None:
-            ref = user_input[CONF_STATION]
-            await self.async_set_unique_id(f"{DOMAIN}_ea_{ref}")
-            self._abort_if_unique_id_configured()
-            try:
-                # The station list leaves out some measures, so read the station itself
-                station = await EnvironmentAgencyApi(async_get_clientsession(self.hass)).station(
-                    ref
-                )
-            except StationNotFound:
-                errors[CONF_STATION] = "england_station_not_found"
-            except WaterlevelError:
-                errors["base"] = "england_unreachable"
-            else:
-                return self.async_create_entry(
-                    title=station["name"], data=_england_entry_data(station)
-                )
-        return self.async_show_form(
-            step_id="england_station",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_STATION): SelectSelector(
-                        SelectSelectorConfig(
-                            options=[
-                                SelectOptionDict(
-                                    value=ref,
-                                    label=(
-                                        f"{station['name']}"
-                                        f"{', ' + station['river'] if station['river'] else ''}"
-                                        f" ({ref}), {self._distances[ref] / 1000:.1f} km"
-                                    ),
-                                )
-                                for ref, station in self._ea_stations.items()
-                            ],
-                            mode=SelectSelectorMode.DROPDOWN,
-                        )
-                    ),
-                }
-            ),
-            errors=errors,
-        )
+            result = await self._async_add_england(user_input[CONF_STATION], errors)
+            if result is not None:
+                return result
+        return self._station_form("england_station", errors)
 
     async def async_step_scotland(
         self, user_input: dict[str, Any] | None = None
@@ -366,48 +398,19 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Pick a location and radius to look for SEPA stations in Scotland."""
         errors: dict[str, str] = {}
         if user_input is not None:
-            location = user_input[CONF_LOCATION]
             try:
-                stations = await SepaApi(async_get_clientsession(self.hass)).stations()
+                found = await _search_scotland(
+                    self.hass, user_input[CONF_LOCATION], self._async_current_ids()
+                )
             except WaterlevelError as err:
                 _LOGGER.warning("Failed to fetch the SEPA station list: %s", err)
                 errors["base"] = "scotland_unreachable"
             else:
-                configured = self._async_current_ids()
-                nearby = []
-                for station in stations:
-                    if f"{DOMAIN}_sepa_{station['station']}" in configured:
-                        continue
-                    dist = distance(
-                        location[CONF_LATITUDE],
-                        location[CONF_LONGITUDE],
-                        station["latitude"],
-                        station["longitude"],
-                    )
-                    if dist is not None and dist <= location[CONF_RADIUS]:
-                        nearby.append((dist, station))
-                nearby.sort(key=lambda found: found[0])
-                if nearby:
-                    self._sepa_stations = {station["station"]: station for _, station in nearby}
-                    self._distances = {station["station"]: dist for dist, station in nearby}
+                if found:
+                    self._found = {item.ref: item for item in found}
                     return await self.async_step_scotland_station()
                 errors["base"] = "no_nearby_stations"
-        default = (user_input or {}).get(CONF_LOCATION) or {
-            CONF_LATITUDE: self.hass.config.latitude,
-            CONF_LONGITUDE: self.hass.config.longitude,
-            CONF_RADIUS: DEFAULT_NEARBY_RADIUS,
-        }
-        return self.async_show_form(
-            step_id="scotland",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_LOCATION, default=default): LocationSelector(
-                        LocationSelectorConfig(radius=True)
-                    ),
-                }
-            ),
-            errors=errors,
-        )
+        return self._location_form("scotland", user_input, errors)
 
     async def async_step_scotland_station(
         self, user_input: dict[str, Any] | None = None
@@ -416,46 +419,106 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             ref = user_input[CONF_STATION]
-            await self.async_set_unique_id(f"{DOMAIN}_sepa_{ref}")
-            self._abort_if_unique_id_configured()
-            try:
-                level_ts, flow_ts = await SepaApi(
-                    async_get_clientsession(self.hass)
-                ).station_series(ref)
-            except StationNotFound:
-                errors[CONF_STATION] = "scotland_station_not_found"
-            except WaterlevelError:
-                errors["base"] = "scotland_unreachable"
+            result = await self._async_add_scotland(self._found[ref], errors)
+            if result is not None:
+                return result
+        return self._station_form("scotland_station", errors)
+
+    async def async_step_anywhere(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Search all three countries around a location, so a border isn't a problem."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            found = await self._async_search_everywhere(user_input[CONF_LOCATION])
+            if found is None:
+                errors["base"] = "anywhere_unreachable"
+            elif found:
+                self._found = {f"{item.country}:{item.ref}": item for item in found}
+                return await self.async_step_anywhere_station()
             else:
-                station = self._sepa_stations[ref]
-                return self.async_create_entry(
-                    title=station["name"],
-                    data=_scotland_entry_data(station, level_ts, flow_ts),
-                )
-        return self.async_show_form(
-            step_id="scotland_station",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_STATION): SelectSelector(
-                        SelectSelectorConfig(
-                            options=[
-                                SelectOptionDict(
-                                    value=ref,
-                                    label=(
-                                        f"{station['name']}"
-                                        f"{', ' + station['river'] if station['river'] else ''}"
-                                        f" ({ref}), {self._distances[ref] / 1000:.1f} km"
-                                    ),
-                                )
-                                for ref, station in self._sepa_stations.items()
-                            ],
-                            mode=SelectSelectorMode.DROPDOWN,
-                        )
-                    ),
-                }
-            ),
-            errors=errors,
+                errors["base"] = "no_nearby_stations"
+        return self._location_form("anywhere", user_input, errors)
+
+    async def _async_search_everywhere(self, location: dict[str, Any]) -> list[Found] | None:
+        """Every country's stations near a location, closest first.
+
+        A country that is down is skipped and logged. None means every country failed.
+        For now all three are searched whatever the radius. Searching only the countries the
+        radius reaches would save two requests, and is a later optimisation.
+        """
+        configured = self._async_current_ids()
+        results = await asyncio.gather(
+            _search_ireland(self.hass, location, configured),
+            _search_england(self.hass, location, configured),
+            _search_scotland(self.hass, location, configured),
+            return_exceptions=True,
         )
+        found: list[Found] = []
+        failed = 0
+        for country, result in zip(COUNTRY_NAMES, results, strict=True):
+            if isinstance(result, WaterlevelError):
+                _LOGGER.warning("Failed to search %s: %s", COUNTRY_NAMES[country], result)
+                failed += 1
+            elif isinstance(result, BaseException):
+                raise result
+            else:
+                found.extend(result)
+        if failed == len(results):
+            return None
+        return sorted(found, key=lambda item: item.distance)
+
+    async def async_step_anywhere_station(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Pick a station from any country, closest first."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            found = self._found[user_input[CONF_STATION]]
+            if found.country == SOURCE_EA:
+                result = await self._async_add_england(found.ref, errors)
+            elif found.country == SOURCE_SEPA:
+                result = await self._async_add_scotland(found, errors)
+            else:
+                result = await self._async_add_station(found.ref, errors, name_hint=found.name)
+            if result is not None:
+                return result
+        return self._station_form("anywhere_station", errors, _label_with_country)
+
+    async def _async_add_england(self, ref: str, errors: dict[str, str]) -> ConfigFlowResult | None:
+        """Read the English station and create its entry; on failure fill errors."""
+        await self.async_set_unique_id(_unique_id(SOURCE_EA, ref))
+        self._abort_if_unique_id_configured()
+        try:
+            # The station list leaves out some measures, so read the station itself
+            station = await EnvironmentAgencyApi(async_get_clientsession(self.hass)).station(ref)
+        except StationNotFound:
+            errors[CONF_STATION] = "england_station_not_found"
+        except WaterlevelError:
+            errors["base"] = "england_unreachable"
+        else:
+            return self.async_create_entry(title=station["name"], data=_england_entry_data(station))
+        return None
+
+    async def _async_add_scotland(
+        self, found: Found, errors: dict[str, str]
+    ) -> ConfigFlowResult | None:
+        """Find the Scottish station's time series and create its entry; on failure fill errors."""
+        await self.async_set_unique_id(_unique_id(SOURCE_SEPA, found.ref))
+        self._abort_if_unique_id_configured()
+        try:
+            level_ts, flow_ts = await SepaApi(async_get_clientsession(self.hass)).station_series(
+                found.ref
+            )
+        except StationNotFound:
+            errors[CONF_STATION] = "scotland_station_not_found"
+        except WaterlevelError:
+            errors["base"] = "scotland_unreachable"
+        else:
+            return self.async_create_entry(
+                title=found.name, data=_scotland_entry_data(found.data, level_ts, flow_ts)
+            )
+        return None
 
     async def async_step_river(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Pick a river, then load its stations."""
