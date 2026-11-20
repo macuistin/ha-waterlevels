@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any
 
 import aiohttp
@@ -419,3 +420,46 @@ async def test_options_do_not_offer_redetect(
     assert result["type"] is FlowResultType.CREATE_ENTRY
     await hass.async_block_till_done()
     assert entry.options["scan_interval"] == 30
+
+
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
+async def test_keeps_last_reading_and_flags_stale_through_an_outage(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, frozen_now
+) -> None:
+    _mock_api(aioclient_mock)
+    entry = _entry(hass)
+    await _setup(hass, entry)
+    assert hass.states.get("binary_sensor.kingston_data_stale").state == "off"
+
+    # The Environment Agency goes down for four hours, longer than the stale limit
+    _mock_api(aioclient_mock, fail=True)
+    frozen_now.tick(timedelta(hours=4))
+    await entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+
+    level = hass.states.get("sensor.kingston_water_level")
+    assert level.state == "5.5"
+    assert level.attributes["last_reported"] == "2026-10-19T18:15:00+00:00"
+    assert level.attributes["stale"] is True
+    assert hass.states.get("sensor.kingston_discharge").state == "12.5"
+    assert hass.states.get("binary_sensor.kingston_data_stale").state == "on"
+    assert hass.states.get("sensor.kingston_data_age").state == "255"
+    assert hass.states.get("sensor.kingston_last_reading").state == "2026-10-19T18:15:00+00:00"
+
+
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
+async def test_station_with_only_old_readings_sets_up_stale(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, frozen_now
+) -> None:
+    aioclient_mock.get(
+        EA_LATEST_URL.split("?")[0],
+        json={"items": [_reading(LEVEL, 5.0, "2026-10-18T12:00:00Z")]},
+    )
+    aioclient_mock.get(READINGS_URL, json={"items": []})
+    entry = _entry(hass)
+    await _setup(hass, entry)
+
+    # It still sets up, so Data Stale can say the gauge has gone quiet
+    assert entry.state is ConfigEntryState.LOADED
+    assert hass.states.get("sensor.kingston_water_level").attributes["stale"] is True
+    assert hass.states.get("binary_sensor.kingston_data_stale").state == "on"

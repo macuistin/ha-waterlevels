@@ -1,6 +1,6 @@
 """Diagnostics for Water Levels.
 
-Everything here is public data about an OPW gauge station, so nothing is redacted.
+Everything here is public data about a gauge station, so nothing is redacted.
 """
 
 from __future__ import annotations

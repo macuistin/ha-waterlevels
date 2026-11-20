@@ -342,3 +342,41 @@ def test_setup_steps_warn_about_the_daily_limit() -> None:
         description = strings["config"]["step"][step]["description"]
         assert "30 minutes" in description
         assert "limit" in description
+
+
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
+async def test_keeps_last_reading_and_flags_stale_through_an_outage(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, frozen_now
+) -> None:
+    _mock_api(aioclient_mock)
+    entry = _entry(hass)
+    await _setup(hass, entry)
+    assert hass.states.get("binary_sensor.kilphedir_data_stale").state == "off"
+
+    # SEPA goes down for four hours, longer than the stale limit
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(_url("getTimeseriesValues"), exc=aiohttp.ClientError("down"))
+    frozen_now.tick(timedelta(hours=4))
+    await entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+
+    level = hass.states.get("sensor.kilphedir_water_level")
+    assert level.state == "1.3"
+    assert level.attributes["last_reported"] == "2026-10-19T18:15:00+00:00"
+    assert level.attributes["stale"] is True
+    assert hass.states.get("sensor.kilphedir_discharge").state == "7.5"
+    assert hass.states.get("binary_sensor.kilphedir_data_stale").state == "on"
+    assert hass.states.get("sensor.kilphedir_data_age").state == "255"
+
+
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
+async def test_station_with_only_old_readings_sets_up_stale(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, frozen_now
+) -> None:
+    _mock_api(aioclient_mock, level=[("2026-10-18T12:00:00.000Z", 1.0)], flow=None)
+    entry = _entry(hass, available_sensors=["0001"], flow_ts=None)
+    await _setup(hass, entry)
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert hass.states.get("sensor.kilphedir_water_level").attributes["stale"] is True
+    assert hass.states.get("binary_sensor.kilphedir_data_stale").state == "on"
