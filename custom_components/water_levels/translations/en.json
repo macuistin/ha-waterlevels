@@ -2,14 +2,21 @@
   "config": {
     "step": {
       "user": {
-        "title": "Add a gauge station",
-        "description": "How would you like to find the station?",
+        "title": "Add a station",
+        "description": "Which country is the station in?",
+        "menu_options": {
+          "ireland": "Ireland",
+          "england": "England",
+          "scotland": "Scotland"
+        }
+      },
+      "ireland": {
+        "title": "Add a station in Ireland",
+        "description": "How would you like to find the station? Irish stations come from waterlevel.ie (OPW).",
         "menu_options": {
           "nearby": "Find stations near a location",
           "river": "Browse by river",
-          "station_number": "Enter a station number",
-          "england": "Find stations in England (Environment Agency)",
-          "scotland": "Find stations in Scotland (SEPA)"
+          "station_number": "Enter a station number"
         }
       },
       "nearby": {

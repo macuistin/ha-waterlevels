@@ -169,10 +169,18 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._sepa_stations: dict[str, dict[str, Any]] = {}
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Ask whether to find stations nearby, browse by river, or type a station number."""
+        """Ask which country the station is in."""
+        return self.async_show_menu(step_id="user", menu_options=["ireland", "england", "scotland"])
+
+    async def async_step_ireland(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Ask how to find an Irish station: nearby, by river or by station number.
+
+        England and Scotland can only search near a location, so they go straight to it.
+        """
         return self.async_show_menu(
-            step_id="user",
-            menu_options=["nearby", "river", "station_number", "england", "scotland"],
+            step_id="ireland", menu_options=["nearby", "river", "station_number"]
         )
 
     async def async_step_nearby(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:

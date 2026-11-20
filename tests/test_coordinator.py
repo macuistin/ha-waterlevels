@@ -152,6 +152,9 @@ async def test_detect_station_probes_csvs_when_page_fails(
 async def test_flow_reports_unexpected_errors(hass: HomeAssistant) -> None:
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
     result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "ireland"}
+    )
+    result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"next_step_id": "station_number"}
     )
     with patch(
@@ -166,6 +169,9 @@ async def test_flow_reports_unexpected_errors(hass: HomeAssistant) -> None:
 @pytest.mark.usefixtures("mock_setup_entry")
 async def test_flow_reports_connection_errors_while_probing(hass: HomeAssistant) -> None:
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "ireland"}
+    )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"next_step_id": "station_number"}
     )
