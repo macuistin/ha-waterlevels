@@ -111,5 +111,7 @@ SEPA_SCAN_INTERVAL = 30
 CONF_LEVEL_TS = "level_ts"
 CONF_FLOW_TS = "flow_ts"
 SEPA_BASE_URL = "https://timeseries.sepa.org.uk/KiWIS/KiWIS"
+# The station's page on SEPA's water levels website, by its station number
+SEPA_STATION_PAGE_URL = "https://waterlevels.sepa.org.uk/Station/{station}"
 # Sent with every request: the KiWIS service, as JSON
 SEPA_PARAMS = {"service": "kisters", "type": "queryServices", "datasource": "0", "format": "json"}
