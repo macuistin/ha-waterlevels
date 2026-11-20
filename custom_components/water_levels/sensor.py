@@ -1,0 +1,350 @@
+"""Sensor platform for Water Levels."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
+
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorEntityDescription,
+    SensorStateClass,
+)
+from homeassistant.const import (
+    PERCENTAGE,
+    SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+    EntityCategory,
+    UnitOfElectricPotential,
+    UnitOfLength,
+    UnitOfTemperature,
+    UnitOfTime,
+    UnitOfVolumeFlowRate,
+)
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util import dt as dt_util
+
+from .const import (
+    FLOOD_STAGES,
+    FLOW_PERCENTILE,
+    SENSOR_TYPES,
+    THRESHOLD_ENTITIES,
+    TREND_RATE,
+    WATER_LEVEL,
+)
+from .coordinator import StationCoordinator, WaterlevelConfigEntry
+from .entity import WaterlevelEntity
+
+# Entities only read the coordinator's data, so updates need no limit
+PARALLEL_UPDATES = 0
+
+
+# m³/s is a volume flow rate unit only in newer Home Assistant releases; on older ones
+# Discharge has no device class, so the unit isn't rejected
+CUBIC_METERS_PER_SECOND = "m³/s"
+_FLOW_DEVICE_CLASS = (
+    SensorDeviceClass.VOLUME_FLOW_RATE
+    if CUBIC_METERS_PER_SECOND in {unit.value for unit in UnitOfVolumeFlowRate}
+    else None
+)
+
+
+@dataclass(frozen=True, kw_only=True)
+class WaterlevelSensorEntityDescription(SensorEntityDescription):
+    """Describes a sensor; key is the OPW sensor code or summary key it reads."""
+
+
+def _level(key: str, translation_key: str) -> WaterlevelSensorEntityDescription:
+    return WaterlevelSensorEntityDescription(
+        key=key,
+        translation_key=translation_key,
+        native_unit_of_measurement=UnitOfLength.METERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=3,
+    )
+
+
+SENSOR_DESCRIPTIONS: dict[str, WaterlevelSensorEntityDescription] = {
+    description.key: description
+    for description in (
+        _level("0001", "water_level"),
+        _level("0011", "backup_water_level"),
+        _level("OD", "water_level_od"),
+        WaterlevelSensorEntityDescription(
+            key="0002",
+            translation_key="temperature",
+            native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+            device_class=SensorDeviceClass.TEMPERATURE,
+            state_class=SensorStateClass.MEASUREMENT,
+            # The gauge housing's temperature, not the water's
+            entity_registry_enabled_default=False,
+        ),
+        WaterlevelSensorEntityDescription(
+            key="0003",
+            translation_key="battery_voltage",
+            native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+            device_class=SensorDeviceClass.VOLTAGE,
+            state_class=SensorStateClass.MEASUREMENT,
+            entity_category=EntityCategory.DIAGNOSTIC,
+            entity_registry_enabled_default=False,
+        ),
+        WaterlevelSensorEntityDescription(
+            key="0014",
+            translation_key="signal_strength",
+            native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+            device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+            state_class=SensorStateClass.MEASUREMENT,
+            entity_category=EntityCategory.DIAGNOSTIC,
+            entity_registry_enabled_default=False,
+        ),
+        _level("0001_daily_mean", "daily_mean_water_level"),
+        _level("0001_daily_min", "daily_min_water_level"),
+        _level("0001_daily_max", "daily_max_water_level"),
+        WaterlevelSensorEntityDescription(
+            key="discharge",
+            translation_key="discharge",
+            native_unit_of_measurement=CUBIC_METERS_PER_SECOND,
+            device_class=_FLOW_DEVICE_CLASS,
+            state_class=SensorStateClass.MEASUREMENT,
+            suggested_display_precision=2,
+        ),
+    )
+}
+
+TREND_RATE_DESCRIPTION = WaterlevelSensorEntityDescription(
+    key=TREND_RATE,
+    translation_key="water_level_trend",
+    native_unit_of_measurement="m/h",
+    state_class=SensorStateClass.MEASUREMENT,
+    suggested_display_precision=3,
+)
+
+FLOW_PERCENTILE_DESCRIPTION = WaterlevelSensorEntityDescription(
+    key=FLOW_PERCENTILE,
+    translation_key="flow_percentile",
+    native_unit_of_measurement=PERCENTAGE,
+    state_class=SensorStateClass.MEASUREMENT,
+    suggested_display_precision=0,
+)
+
+FLOOD_STAGE_DESCRIPTION = SensorEntityDescription(
+    key="flood_stage",
+    translation_key="flood_stage",
+    device_class=SensorDeviceClass.ENUM,
+    options=FLOOD_STAGES,
+)
+
+# Where the default thresholds came from, best source first
+STATION_INFO_SOURCES = ["alarm_levels", "stage_scale", "history", "fallback"]
+
+STATION_INFO_DESCRIPTION = SensorEntityDescription(
+    key="station_info",
+    translation_key="station_info",
+    device_class=SensorDeviceClass.ENUM,
+    options=STATION_INFO_SOURCES,
+    entity_category=EntityCategory.DIAGNOSTIC,
+)
+
+LAST_READING_DESCRIPTION = SensorEntityDescription(
+    key="last_reading",
+    translation_key="last_reading",
+    device_class=SensorDeviceClass.TIMESTAMP,
+)
+
+DATA_AGE_DESCRIPTION = SensorEntityDescription(
+    key="data_age",
+    translation_key="data_age",
+    device_class=SensorDeviceClass.DURATION,
+    native_unit_of_measurement=UnitOfTime.MINUTES,
+    state_class=SensorStateClass.MEASUREMENT,
+    entity_category=EntityCategory.DIAGNOSTIC,
+)
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: WaterlevelConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    coordinator = entry.runtime_data
+    entities: list[SensorEntity] = [
+        WaterlevelSensor(coordinator, SENSOR_DESCRIPTIONS[key])
+        for key in coordinator.available_sensors
+        if key in SENSOR_DESCRIPTIONS
+    ]
+    if "discharge" in coordinator.available_sensors and coordinator.flow_percentiles:
+        entities.append(FlowPercentileSensor(coordinator))
+    if WATER_LEVEL in coordinator.available_sensors:
+        entities += [
+            FloodStageSensor(coordinator),
+            StationInfoSensor(coordinator),
+            WaterlevelSensor(coordinator, TREND_RATE_DESCRIPTION),
+        ]
+    if any(key in SENSOR_TYPES for key in coordinator.available_sensors):
+        entities += [LastReadingSensor(coordinator), DataAgeSensor(coordinator)]
+    async_add_entities(entities)
+
+
+class WaterlevelSensor(WaterlevelEntity, SensorEntity):
+    """A reading from the station's live or daily summary data."""
+
+    entity_description: WaterlevelSensorEntityDescription
+
+    def __init__(
+        self,
+        coordinator: StationCoordinator,
+        description: WaterlevelSensorEntityDescription,
+    ) -> None:
+        super().__init__(coordinator, description.key)
+        self.entity_description = description
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.data.get(self.entity_description.key)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the reading's time, week range and trend, and the station location."""
+        attrs = dict(self.coordinator.sensor_attrs.get(self.entity_description.key, {}))
+        attrs.update(self._location_attributes())
+        return attrs
+
+
+class FlowPercentileSensor(WaterlevelSensor):
+    """How the current discharge compares with the station's record: 50 is the median."""
+
+    def __init__(self, coordinator: StationCoordinator) -> None:
+        super().__init__(coordinator, FLOW_PERCENTILE_DESCRIPTION)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Add the flows the percentile is read from, in m³/s."""
+        attrs = super().extra_state_attributes
+        flows = self.coordinator.flow_percentiles or {}
+        for name, label in (
+            ("p50", "median_flow_m3s"),
+            ("p05", "exceeded_5_percent_flow_m3s"),
+            ("p95", "exceeded_95_percent_flow_m3s"),
+        ):
+            if name in flows:
+                attrs[label] = flows[name]
+        return attrs
+
+
+class FloodStageSensor(WaterlevelEntity, SensorEntity):
+    """The current flood stage: normal, watch, alert or serious."""
+
+    entity_description = FLOOD_STAGE_DESCRIPTION
+
+    def __init__(self, coordinator: StationCoordinator) -> None:
+        super().__init__(coordinator, "flood_stage")
+
+    @property
+    def native_value(self) -> str | None:
+        return self.coordinator.flood_stage()
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        # When the level this stage comes from was reported, and whether it is old
+        attrs: dict[str, Any] = dict(self.coordinator.sensor_attrs.get(WATER_LEVEL, {}))
+        attrs.update(
+            {
+                f"{key}_level_m": value
+                for key in THRESHOLD_ENTITIES
+                if (value := self.coordinator.get_threshold(key)) is not None
+            }
+        )
+        suggested = self.coordinator.suggested or {}
+        if "typical" in suggested:
+            attrs["typical_level_m"] = suggested["typical"]
+            attrs["record_daily_mean_m"] = suggested["record"]
+        info = self.coordinator.station_info or {}
+        attrs.update(info.get("details", {}))
+        if "annual_max_median" in info.get("levels", {}):
+            attrs["median_annual_maximum_m"] = info["levels"]["annual_max_median"]
+        if "annual_max_highest" in info.get("levels", {}):
+            attrs["highest_annual_maximum_m"] = info["levels"]["annual_max_highest"]
+        attrs.update(self._location_attributes())
+        return attrs
+
+
+class StationInfoSensor(WaterlevelEntity, SensorEntity):
+    """What is known about the station, and where its default flood thresholds come from.
+
+    The state is the source of the defaults: the station's OPW alarm levels, its daily
+    record, or the fixed fallback values. The attributes hold the station details, its
+    reference levels and the three default levels.
+    """
+
+    entity_description = STATION_INFO_DESCRIPTION
+
+    def __init__(self, coordinator: StationCoordinator) -> None:
+        super().__init__(coordinator, "station_info")
+
+    @property
+    def available(self) -> bool:
+        """Local state only, so it stays usable while the station is down."""
+        return True
+
+    @property
+    def native_value(self) -> str:
+        return self.coordinator.default_thresholds()[1]
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        coordinator = self.coordinator
+        info = coordinator.station_info or {}
+        levels = info.get("levels", {})
+        attrs: dict[str, Any] = dict(info.get("details", {}))
+        if "p01" in levels:
+            attrs["exceeded_1_percent_level_m"] = levels["p01"]
+        if "annual_max_median" in levels:
+            attrs["median_annual_maximum_m"] = levels["annual_max_median"]
+        if "annual_max_highest" in levels:
+            attrs["highest_annual_maximum_m"] = levels["annual_max_highest"]
+        attrs.update(
+            {
+                f"default_{key}_level_m": value
+                for key, value in coordinator.default_thresholds()[0].items()
+            }
+        )
+        return attrs
+
+
+class _FreshnessSensor(WaterlevelEntity, SensorEntity):
+    """Reports on the station's last reading; usable during an outage, when it matters most."""
+
+    def __init__(self, coordinator: StationCoordinator, description: SensorEntityDescription):
+        super().__init__(coordinator, description.key)
+        self.entity_description = description
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.last_reading_time is not None
+
+
+class LastReadingSensor(_FreshnessSensor):
+    """When the station last sent a reading."""
+
+    def __init__(self, coordinator: StationCoordinator) -> None:
+        super().__init__(coordinator, LAST_READING_DESCRIPTION)
+
+    @property
+    def native_value(self) -> datetime | None:
+        return self.coordinator.last_reading_time
+
+
+class DataAgeSensor(_FreshnessSensor):
+    """Minutes since the station last sent a reading, as of the last update."""
+
+    def __init__(self, coordinator: StationCoordinator) -> None:
+        super().__init__(coordinator, DATA_AGE_DESCRIPTION)
+
+    @property
+    def native_value(self) -> int | None:
+        if (last := self.coordinator.last_reading_time) is None:
+            return None
+        return int((dt_util.utcnow() - last).total_seconds() // 60)

@@ -1,0 +1,99 @@
+name: Release
+
+# Tags the integration and publishes a GitHub release. Run it by hand: Actions > Release > Run
+# workflow, on main. The version is the one in custom_components/water_levels/manifest.json, so
+# raise it, in pyproject.toml too, and add its section to CHANGELOG.md in a pull request first.
+# HACS installs the release it publishes. It tags that commit vX.Y.Z and uses the changelog
+# section as the notes. A version with a, b or rc after the number is published as a pre-release.
+# It refuses a version whose tag already exists, so the same version cannot be released twice, a
+# run from any branch but main, a pyproject.toml that disagrees, a missing changelog section and
+# a commit whose checks have not all passed. A tag is never moved.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A release is never cancelled part way, so a second one waits for the first.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Tag and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      checks: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Branch, version and tag are right
+        run: |
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "::error::Run a release from main, not ${GITHUB_REF_NAME}."
+            exit 1
+          fi
+          version="$(python -c 'import json; print(json.load(open("custom_components/water_levels/manifest.json"))["version"])')"
+          project="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+((a|b|rc)[0-9]+)?$ ]]; then
+            echo "::error::manifest.json says ${version}, which is not a version like 1.0.0 or 1.1.0rc1."
+            exit 1
+          fi
+          if [[ "${project}" != "${version}" ]]; then
+            echo "::error::pyproject.toml says ${project} but manifest.json says ${version}."
+            exit 1
+          fi
+          tag="v${version}"
+          if git rev-parse -q --verify "refs/tags/${tag}" > /dev/null; then
+            echo "::error::${tag} already exists. A tag is never moved. Raise the version first."
+            exit 1
+          fi
+          python scripts/set_version.py --check "${tag}"
+          echo "VERSION=${version}" >> "${GITHUB_ENV}"
+          echo "TAG=${tag}" >> "${GITHUB_ENV}"
+      - name: Release notes come from the changelog
+        run: python scripts/set_version.py --notes "v${VERSION}" > "${RUNNER_TEMP}/notes.md"
+      - name: Every check on this commit has passed
+        run: |
+          # The beta job may fail without failing a commit, and this job is running now, so neither is counted.
+          gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs" --paginate \
+            --jq '.check_runs[] | select(.name | test("beta|Publish|Tag and publish") | not) | [.name, .status, (.conclusion // "")] | @tsv' \
+            > "${RUNNER_TEMP}/checks.tsv"
+          cat "${RUNNER_TEMP}/checks.tsv"
+          # The workflows must have run at all, and none may be unfinished or red.
+          for needed in "lint" "typing" "Tests (Home Assistant" "validate" "hacs"; do
+            if ! grep -qi "${needed}" "${RUNNER_TEMP}/checks.tsv"; then
+              echo "::error::No '${needed}' check ran on ${GITHUB_SHA}. Wait for CI on main."
+              exit 1
+            fi
+          done
+          if awk -F'\t' '$2 != "completed" || ($3 != "success" && $3 != "skipped" && $3 != "neutral")' \
+            "${RUNNER_TEMP}/checks.tsv" | grep -q .; then
+            echo "::error::A check on ${GITHUB_SHA} is unfinished or failed. Release only a green commit."
+            exit 1
+          fi
+      - name: Tag the commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG}" -m "Release ${VERSION}"
+          git push origin "refs/tags/${TAG}"
+      - name: Publish the release
+        run: |
+          flags=()
+          if [[ "${VERSION}" =~ (a|b|rc)[0-9]+$ ]]; then
+            flags+=(--prerelease)
+          else
+            flags+=(--latest)
+          fi
+          gh release create "${TAG}" --verify-tag --title "${VERSION}" \
+            --notes-file "${RUNNER_TEMP}/notes.md" "${flags[@]}"

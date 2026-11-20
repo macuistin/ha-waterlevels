@@ -1,0 +1,14 @@
+{
+  "domain": "water_levels",
+  "name": "Water Levels",
+  "codeowners": [
+    "@macuistin"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/macuistin/ha-waterlevels",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/macuistin/ha-waterlevels/issues",
+  "requirements": [],
+  "version": "1.5.1"
+}
