@@ -36,5 +36,5 @@
     <path d="M104 172 L150 124 L196 172" fill="none" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
   </g>
-  <text x="292" y="168" font-family="Inter, sans-serif" font-weight="700" font-size="124" letter-spacing="-2" fill="#FFFFFF">Water Level <tspan fill="#7FD6F7">Gauges</tspan></text>
+  <text x="292" y="168" font-family="Inter, sans-serif" font-weight="700" font-size="124" letter-spacing="-2" fill="#FFFFFF">Water <tspan fill="#7FD6F7">Levels</tspan></text>
 </svg>
