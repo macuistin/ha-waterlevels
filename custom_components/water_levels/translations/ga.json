@@ -124,7 +124,7 @@
     "step": {
       "init": {
         "title": "Roghanna an stáisiúin",
-        "description": "Nuashonraíonn waterlevel.ie gach tomhsaire thart ar gach 15 nóiméad, agus iarrann an OPW gan é a cheistiú níos minice ná sin.",
+        "description": "Nuashonraítear stáisiúin in Éirinn agus i Sasana thart ar gach 15 nóiméad, agus iarrann a bhfoilsitheoirí gan iad a cheistiú níos minice ná sin. Nuashonraítear stáisiúin na hAlban gach 30 nóiméad, chun fanacht laistigh de theorainn laethúil SEPA.",
         "data": {
           "scan_interval": "Eatramh nuashonraithe",
           "stale_hours": "Marcáil na sonraí as dáta tar éis",
@@ -132,7 +132,7 @@
           "redetect_sensors": "Seiceáil an stáisiún le haghaidh braiteoirí nua"
         },
         "data_description": {
-          "scan_interval": "Cé chomh minic a léitear sonraí nua ó waterlevel.ie. Is é 15 nóiméad an t-eatramh is giorra a cheadaítear.",
+          "scan_interval": "Cé chomh minic a léitear sonraí nua ó fhoinse an stáisiúin. Is é 15 nóiméad an t-eatramh is giorra a cheadaítear, nó 30 nóiméad do stáisiún in Albain.",
           "stale_hours": "Nuair nach bhfuil léamh seolta ag an stáisiún le fada seo, casann Sonraí As Dáta air. Coinníonn na haonáin eile an léamh deireanach, agus tréith stale leis.",
           "alert_stage": "An chéim tuile is ísle a chasann an braiteoir dénártha Rabhadh Tuile air.",
           "redetect_sensors": "Féachann sé cé na braiteoirí atá ag an stáisiún anois agus cuireann sé aon cheann nua leis."
@@ -140,8 +140,8 @@
       }
     },
     "error": {
-      "cannot_connect": "Níorbh fhéidir waterlevel.ie a bhaint amach. Seiceáil do cheangal idirlín agus bain triail eile as.",
-      "station_not_found": "Ní liostaíonn waterlevel.ie aon sonraí braiteora don stáisiún seo a thuilleadh."
+      "cannot_connect": "Níorbh fhéidir foinse sonraí an stáisiúin a bhaint amach. Seiceáil do cheangal idirlín agus bain triail eile as.",
+      "station_not_found": "Ní liostaíonn foinse sonraí an stáisiúin aon sonraí braiteora don stáisiún seo a thuilleadh."
     }
   },
   "entity": {
@@ -295,7 +295,7 @@
   },
   "exceptions": {
     "update_failed": {
-      "message": "Níorbh fhéidir aon sonraí le déanaí a léamh do stáisiún {station} ó waterlevel.ie: {error}"
+      "message": "Níorbh fhéidir aon sonraí le déanaí a léamh do stáisiún {station} óna fhoinse sonraí: {error}"
     }
   }
 }

@@ -61,3 +61,22 @@ def test_manifest_and_project_versions_match() -> None:
     manifest = _load(PKG / "manifest.json")["version"]
     project = re.search(r'^version = "(.+)"$', (ROOT / "pyproject.toml").read_text(), re.M)
     assert project and project.group(1) == manifest
+
+
+def _shared_strings(strings: dict) -> list[str]:
+    """Strings every source reaches: the options form and the update failure message."""
+    options = strings["options"]
+    return [
+        options["step"]["init"]["description"],
+        options["step"]["init"]["data_description"]["scan_interval"],
+        *options["error"].values(),
+        strings["exceptions"]["update_failed"]["message"],
+    ]
+
+
+@pytest.mark.parametrize("name", ["strings.json", "translations/ga.json"])
+def test_strings_every_source_reaches_do_not_name_one_publisher(name: str) -> None:
+    # England and Scotland stations see these too, so they can't say waterlevel.ie
+    strings = json.loads((PKG / name).read_text(encoding="utf-8"))
+    for text in _shared_strings(strings):
+        assert "waterlevel.ie" not in text

@@ -15,6 +15,9 @@ What each release changed, newest first.
 - `hacs.json` `country` is now `IE` and `GB`, as the integration reads English stations as well as Irish ones.
 - Internally, the readings, thresholds and flood-stage code every source shares is now a `StationCoordinator` base class that the Irish and English coordinators extend. Irish stations, their entity ids and unique ids are unchanged.
 
+**Fixes**
+- The options form and the "could not read any recent data" message no longer name waterlevel.ie, since England and Scotland stations see them too. The options text now gives the update interval for each country. The Irish wording is a first draft, corrections welcome.
+
 **Upgrading**
 - Nothing changes for existing Irish stations.
 - Stations you already have get the new sensor the next time Home Assistant starts or the integration reloads; you don't need to check for new sensors.
