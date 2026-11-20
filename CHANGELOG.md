@@ -2,7 +2,9 @@
 
 What each release changed, newest first.
 
-## Unreleased
+## v0.2.0b1
+
+A beta of the next release, for HACS users who enable beta versions. It adds a country step when adding a station, a search across all countries and a fix for English stations with a retired level measure. It is a pre-release: stable installs stay on v0.1.0.
 
 **Added**
 - **Search all countries** when adding a station: one location and radius search across Ireland, England and Scotland, closest first, with the country on each station. It is useful near a border. A country that can't be reached is skipped, and the search fails only when none can be.
