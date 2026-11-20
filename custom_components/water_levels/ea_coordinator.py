@@ -93,6 +93,8 @@ class EnvironmentAgencyCoordinator(StationCoordinator):
         self.level_measure: str = entry.data[CONF_LEVEL_MEASURE]
         self.flow_measure: str | None = entry.data.get(CONF_FLOW_MEASURE)
         self.rloi_id: str | None = entry.data.get(CONF_RLOI_ID) or None
+        # A station is looked up again at most once per session, if its measure is silent
+        self._measures_rechecked = False
 
     @property
     def device_key(self) -> str:
@@ -120,12 +122,47 @@ class EnvironmentAgencyCoordinator(StationCoordinator):
             return dict(scale), "stage_scale"
         return {"watch": None, "alert": None, "serious": None}, "fallback"
 
+    async def _async_recheck_measures(self) -> Reading | None:
+        """Look the station up again when its saved level measure has never reported.
+
+        A station can keep a retired measure beside its live one, and an entry made
+        before retired measures were skipped may have saved the wrong one. If the
+        station now names another measure, use it and save it in the entry.
+        """
+        self._measures_rechecked = True
+        try:
+            station = await self.api.station(self.station)
+        except WaterlevelError as err:
+            _LOGGER.debug("Could not look up station %s again: %s", self.station, err)
+            return None
+        if station["level_measure"] == self.level_measure:
+            return None
+        _LOGGER.debug(
+            "Station %s: using level measure %s, not %s, which has no reading",
+            self.station,
+            station["level_measure"],
+            self.level_measure,
+        )
+        self.level_measure = station["level_measure"]
+        self.flow_measure = station["flow_measure"]
+        self.hass.config_entries.async_update_entry(
+            self.config_entry,
+            data={
+                **self.config_entry.data,
+                CONF_LEVEL_MEASURE: self.level_measure,
+                CONF_FLOW_MEASURE: self.flow_measure,
+            },
+        )
+        return await self._latest.get(self.level_measure)
+
     async def _async_update_data(self) -> dict[str, Any]:
         data: dict[str, Any] = {}
         # Reset per-update metadata, so stale attributes don't survive a failed fetch
         self.sensor_attrs = {}
 
         level = await self._latest.get(self.level_measure)
+        if level is None and self.last_reading_time is None and not self._measures_rechecked:
+            level = await self._async_recheck_measures()
         # The last few hours give the trend, and may be newer than the shared feed
         try:
             recent = await self.api.readings_since(

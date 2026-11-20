@@ -166,6 +166,36 @@ def test_pick_measures_falls_back_to_other_stage_kinds() -> None:
     assert pick_measures(flow) == (None, "F-flow-water-i-15_min-m3_s")
 
 
+def _with_reading(measure: dict[str, Any], time: str | None) -> dict[str, Any]:
+    """A measure as the station endpoint shows it: a reading object, or a bare link."""
+    if time is None:
+        return {**measure, "latestReading": BASE.replace("id/measures", "data/readings") + "old"}
+    return {**measure, "latestReading": {"dateTime": time, "value": 1.0}}
+
+
+def test_pick_measures_skips_a_retired_measure() -> None:
+    """Station 694020 keeps a retired Stage measure whose name sorts before the live one."""
+    retired = _with_reading(
+        _measure("694020-level-stage-i-15_min----", "level", "Stage", "---"), None
+    )
+    live = _with_reading(
+        _measure("694020-level-stage-i-15_min-m", "level", "Stage", "m"), "2026-11-20T15:15:00Z"
+    )
+    assert pick_measures([retired, live]) == ("694020-level-stage-i-15_min-m", None)
+    assert pick_measures([live, retired]) == ("694020-level-stage-i-15_min-m", None)
+
+
+def test_pick_measures_prefers_a_live_measure_then_the_stage_datum_then_the_newest() -> None:
+    old_asd = _with_reading(_measure("A-asd", "level", "Stage", "mASD"), "2026-11-01T00:00:00Z")
+    live_aod = _with_reading(_measure("B-aod", "level", "Stage", "mAOD"), "2026-11-20T00:00:00Z")
+    assert pick_measures([live_aod, old_asd]) == ("A-asd", None)
+    newer = _with_reading(_measure("C-aod", "level", "Stage", "mAOD"), "2026-11-21T00:00:00Z")
+    assert pick_measures([live_aod, newer]) == ("C-aod", None)
+    dead_flow = _with_reading(_measure("F1", "flow", "", "m3/s"), None)
+    live_flow = _with_reading(_measure("F2", "flow", "Water", "m3/s"), "2026-11-20T00:00:00Z")
+    assert pick_measures([dead_flow, live_flow]) == (None, "F2")
+
+
 @pytest.mark.parametrize(
     "measures",
     [
@@ -387,6 +417,50 @@ async def test_nothing_ever_read_retries_setup(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
     _mock_api(aioclient_mock, fail=True)
+    entry = _entry(hass)
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+
+
+DEAD = "3400TH-level-stage-i-15_min----"
+
+
+async def test_a_saved_retired_measure_is_replaced_by_the_live_one(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """An entry saved with a retired measure looks the station up and switches."""
+    _mock_api(aioclient_mock)
+    live = _with_reading(MEASURES[1], "2026-10-19T18:15:00Z")
+    retired = _with_reading(_measure(DEAD, "level", "Stage", "---"), None)
+    aioclient_mock.get(
+        EA_STATION_URL.format(ref="3400TH"),
+        json={"items": station_json(measures=[retired, live])},
+    )
+    entry = _entry(hass, level_measure=DEAD, flow_measure=None)
+    await _setup(hass, entry)
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.data["level_measure"] == LEVEL
+    assert hass.states.get("sensor.kingston_water_level").state == "5.5"
+
+
+async def test_a_silent_measure_with_no_better_one_still_retries_setup(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    _mock_api(aioclient_mock, fail=True)
+    aioclient_mock.get(
+        EA_STATION_URL.format(ref="3400TH"), json={"items": station_json(measures=MEASURES)}
+    )
+    entry = _entry(hass)
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert entry.data["level_measure"] == LEVEL
+
+
+async def test_a_failed_station_lookup_is_not_fatal(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    _mock_api(aioclient_mock, fail=True)
+    aioclient_mock.get(EA_STATION_URL.format(ref="3400TH"), status=500)
     entry = _entry(hass)
     assert not await hass.config_entries.async_setup(entry.entry_id)
     assert entry.state is ConfigEntryState.SETUP_RETRY
