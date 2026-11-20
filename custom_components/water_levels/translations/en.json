@@ -7,7 +7,8 @@
         "menu_options": {
           "ireland": "Ireland",
           "england": "England",
-          "scotland": "Scotland"
+          "scotland": "Scotland",
+          "anywhere": "Search all countries"
         }
       },
       "ireland": {
@@ -108,6 +109,26 @@
         "data_description": {
           "station": "The gauge station to add. Each station becomes its own device."
         }
+      },
+      "anywhere": {
+        "title": "Find stations anywhere",
+        "description": "Choose a location and search radius to look for stations in Ireland, England and Scotland at once. It starts at your home location. Please note: SEPA limits how much data anonymous users can read each day, shared by everything on your internet address, and doesn't say whether regular polling is welcome. Scottish stations therefore update every 30 minutes, not 15.",
+        "data": {
+          "location": "Location"
+        },
+        "data_description": {
+          "location": "Drag the pin or change the circle to search a different area. All three countries are searched, so a border isn't a problem."
+        }
+      },
+      "anywhere_station": {
+        "title": "Choose a station",
+        "description": "Gauge stations in Ireland, England and Scotland in that area, closest first, each with its country. Stations you have already added are not listed. Scottish stations update every 30 minutes because of SEPA's daily data limit.",
+        "data": {
+          "station": "Station"
+        },
+        "data_description": {
+          "station": "The gauge station to add. Each station becomes its own device."
+        }
       }
     },
     "error": {
@@ -120,7 +141,8 @@
       "england_unreachable": "Could not reach the Environment Agency flood-monitoring service. Check your internet connection and try again.",
       "england_station_not_found": "No water level data was found for that station.",
       "scotland_unreachable": "Could not reach SEPA's time series service. Check your internet connection and try again. SEPA limits anonymous requests each day, so it may also have reached its limit.",
-      "scotland_station_not_found": "No water level data was found for that station."
+      "scotland_station_not_found": "No water level data was found for that station.",
+      "anywhere_unreachable": "Could not reach any of the three countries' services. Check your internet connection and try again."
     },
     "abort": {
       "already_configured": "This station is already configured.",

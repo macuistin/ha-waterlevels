@@ -83,7 +83,7 @@ async def test_menu(hass: HomeAssistant) -> None:
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     assert result["type"] is FlowResultType.MENU
-    assert result["menu_options"] == ["ireland", "england", "scotland"]
+    assert result["menu_options"] == ["ireland", "england", "scotland", "anywhere"]
 
 
 async def test_ireland_offers_the_ways_to_find_a_station(hass: HomeAssistant) -> None:
@@ -616,3 +616,145 @@ async def test_scotland_station_errors_stay_on_the_step(
     result = await hass.config_entries.flow.async_configure(flow_id, {"station": "234253"})
     assert result["step_id"] == "scotland_station"
     assert result["errors"] == errors
+
+
+# --- Anywhere: all three countries from one location -------------------------------------
+
+# The middle of the Irish Sea, with a radius that reaches stations in all three countries
+EVERYWHERE = {CONF_LOCATION: {"latitude": 53.5, "longitude": -4.5, CONF_RADIUS: 800000}}
+
+
+def _mock_all_countries(aioclient_mock: AiohttpClientMocker) -> None:
+    aioclient_mock.get("https://waterlevel.ie/geojson/latest/", json=LATEST_STATIONS)
+    aioclient_mock.get(EA_STATIONS_URL, json={"items": [station_json()]})
+    aioclient_mock.get(sepa_url("getStationList"), json=SEPA_STATIONS)
+
+
+async def _start_anywhere(hass: HomeAssistant) -> str:
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "anywhere"}
+    )
+    assert result["step_id"] == "anywhere"
+    return result["flow_id"]
+
+
+async def test_anywhere_lists_every_country_closest_first(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    _mock_all_countries(aioclient_mock)
+    flow_id = await _start_anywhere(hass)
+    result = await hass.config_entries.flow.async_configure(flow_id, EVERYWHERE)
+    assert result["step_id"] == "anywhere_station"
+    options = result["data_schema"].schema["station"].config["options"]
+    values = [option["value"] for option in options]
+    assert {value.split(":")[0] for value in values} == {"opw", "ea", "sepa"}
+    # Each label names its country
+    labels = {option["value"].split(":")[0]: option["label"] for option in options}
+    assert labels["opw"].endswith("Ireland")
+    assert labels["ea"].endswith("England")
+    assert labels["sepa"].endswith("Scotland")
+    # Closest first
+    distances = [float(option["label"].split(", ")[-2].removesuffix(" km")) for option in options]
+    assert distances == sorted(distances)
+
+
+async def test_anywhere_creates_an_irish_entry(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    _mock_all_countries(aioclient_mock)
+    _mock_station(aioclient_mock)
+    flow_id = await _start_anywhere(hass)
+    await hass.config_entries.flow.async_configure(flow_id, EVERYWHERE)
+    result = await hass.config_entries.flow.async_configure(flow_id, {"station": "opw:14029"})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["result"].unique_id == f"{DOMAIN}_14029"
+
+
+async def test_anywhere_creates_an_english_entry(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    _mock_all_countries(aioclient_mock)
+    aioclient_mock.get(EA_STATION_URL.format(ref="3400TH"), json={"items": station_json()})
+    flow_id = await _start_anywhere(hass)
+    await hass.config_entries.flow.async_configure(flow_id, EVERYWHERE)
+    result = await hass.config_entries.flow.async_configure(flow_id, {"station": "ea:3400TH"})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"]["source"] == "ea"
+    assert result["result"].unique_id == f"{DOMAIN}_ea_3400TH"
+
+
+async def test_anywhere_creates_a_scottish_entry(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    _mock_all_countries(aioclient_mock)
+    flow_id = await _start_anywhere(hass)
+    await hass.config_entries.flow.async_configure(flow_id, EVERYWHERE)
+    aioclient_mock.get(
+        sepa_url("getTimeseriesList"), json=[["ts_id", "station_no"], ["57759010", "234253"]]
+    )
+    result = await hass.config_entries.flow.async_configure(flow_id, {"station": "sepa:234253"})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"]["source"] == "sepa"
+    assert result["result"].unique_id == f"{DOMAIN}_sepa_234253"
+
+
+async def test_anywhere_skips_a_country_that_is_down(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    _mock_all_countries(aioclient_mock)
+    aioclient_mock.clear_requests()
+    aioclient_mock.get("https://waterlevel.ie/geojson/latest/", exc=aiohttp.ClientError("down"))
+    aioclient_mock.get(EA_STATIONS_URL, json={"items": [station_json()]})
+    aioclient_mock.get(sepa_url("getStationList"), json=SEPA_STATIONS)
+    flow_id = await _start_anywhere(hass)
+    result = await hass.config_entries.flow.async_configure(flow_id, EVERYWHERE)
+    options = result["data_schema"].schema["station"].config["options"]
+    assert {option["value"].split(":")[0] for option in options} == {"ea", "sepa"}
+
+
+async def test_anywhere_all_countries_down(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    aioclient_mock.get("https://waterlevel.ie/geojson/latest/", exc=aiohttp.ClientError("down"))
+    aioclient_mock.get(EA_STATIONS_URL, exc=aiohttp.ClientError("down"))
+    aioclient_mock.get(sepa_url("getStationList"), exc=aiohttp.ClientError("down"))
+    flow_id = await _start_anywhere(hass)
+    result = await hass.config_entries.flow.async_configure(flow_id, EVERYWHERE)
+    assert result["step_id"] == "anywhere"
+    assert result["errors"] == {"base": "anywhere_unreachable"}
+
+
+async def test_anywhere_nothing_nearby(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    _mock_all_countries(aioclient_mock)
+    flow_id = await _start_anywhere(hass)
+    far = {CONF_LOCATION: {"latitude": 0.0, "longitude": 0.0, CONF_RADIUS: 1000}}
+    result = await hass.config_entries.flow.async_configure(flow_id, far)
+    assert result["errors"] == {"base": "no_nearby_stations"}
+
+
+async def test_anywhere_skips_configured_stations(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    MockConfigEntry(domain=DOMAIN, unique_id=f"{DOMAIN}_ea_3400TH").add_to_hass(hass)
+    _mock_all_countries(aioclient_mock)
+    flow_id = await _start_anywhere(hass)
+    result = await hass.config_entries.flow.async_configure(flow_id, EVERYWHERE)
+    options = result["data_schema"].schema["station"].config["options"]
+    assert "ea:3400TH" not in [option["value"] for option in options]
+
+
+async def test_anywhere_station_errors_stay_on_the_step(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    _mock_all_countries(aioclient_mock)
+    aioclient_mock.get(EA_STATION_URL.format(ref="3400TH"), status=404)
+    flow_id = await _start_anywhere(hass)
+    await hass.config_entries.flow.async_configure(flow_id, EVERYWHERE)
+    result = await hass.config_entries.flow.async_configure(flow_id, {"station": "ea:3400TH"})
+    assert result["step_id"] == "anywhere_station"
+    assert result["errors"] == {"station": "england_station_not_found"}
