@@ -491,12 +491,18 @@ class WaterlevelConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._abort_if_unique_id_configured()
         try:
             # The station list leaves out some measures, so read the station itself
-            station = await EnvironmentAgencyApi(async_get_clientsession(self.hass)).station(ref)
+            api = EnvironmentAgencyApi(async_get_clientsession(self.hass))
+            station = await api.station(ref)
+            # A station can stay listed as active long after its gauge stops reporting
+            reporting = station["level_measure"] in await api.latest()
         except StationNotFound:
             errors[CONF_STATION] = "england_station_not_found"
         except WaterlevelError:
             errors["base"] = "england_unreachable"
         else:
+            if not reporting:
+                errors[CONF_STATION] = "england_station_silent"
+                return None
             return self.async_create_entry(title=station["name"], data=_england_entry_data(station))
         return None
 

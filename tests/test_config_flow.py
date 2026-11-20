@@ -16,12 +16,13 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 from custom_components.water_levels.config_flow import normalize_station
 from custom_components.water_levels.const import (
     DOMAIN,
+    EA_LATEST_URL,
     EA_STATION_URL,
     EA_STATIONS_URL,
     GEOJSON_URL,
 )
 
-from .test_england import LEVEL, MEASURES, SCALE, _entry, station_json
+from .test_england import LEVEL, MEASURES, SCALE, _entry, _reading, station_json
 from .test_sepa import LOCATION as SEPA_LOCATION, STATIONS as SEPA_STATIONS, _url as sepa_url
 
 pytestmark = pytest.mark.usefixtures("mock_setup_entry")
@@ -429,6 +430,12 @@ async def test_nearby_cannot_connect(
 LOCATION = {CONF_LOCATION: {"latitude": 51.415, "longitude": -0.309, CONF_RADIUS: 5000}}
 
 
+def _mock_ea_latest(aioclient_mock: AiohttpClientMocker, *measures: str) -> None:
+    """The latest-readings feed, with a reading for each measure (the level by default)."""
+    items = [_reading(measure, 1.0) for measure in measures or (LEVEL,)]
+    aioclient_mock.get(EA_LATEST_URL.split("?")[0], json={"items": items})
+
+
 async def _start_england(hass: HomeAssistant) -> str:
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
@@ -446,6 +453,7 @@ async def test_england_flow_creates_an_entry(
     far = station_json(stationReference="FAR", label="Far away", lat=51.9)
     aioclient_mock.get(EA_STATIONS_URL, json={"items": [station_json(), far]})
     aioclient_mock.get(EA_STATION_URL.format(ref="3400TH"), json={"items": station_json()})
+    _mock_ea_latest(aioclient_mock)
     flow_id = await _start_england(hass)
     result = await hass.config_entries.flow.async_configure(flow_id, LOCATION)
     assert result["step_id"] == "england_station"
@@ -470,6 +478,7 @@ async def test_england_flow_without_flow_or_catchment(
     plain = station_json(measures=MEASURES[:2], catchmentName=None, riverName=None)
     aioclient_mock.get(EA_STATIONS_URL, json={"items": [plain]})
     aioclient_mock.get(EA_STATION_URL.format(ref="3400TH"), json={"items": plain})
+    _mock_ea_latest(aioclient_mock)
     flow_id = await _start_england(hass)
     result = await hass.config_entries.flow.async_configure(flow_id, LOCATION)
     result = await hass.config_entries.flow.async_configure(flow_id, {"station": "3400TH"})
@@ -521,11 +530,40 @@ async def test_england_station_errors_stay_on_the_step(
 ) -> None:
     aioclient_mock.get(EA_STATIONS_URL, json={"items": [station_json()]})
     aioclient_mock.get(EA_STATION_URL.format(ref="3400TH"), **kwargs)
+    _mock_ea_latest(aioclient_mock)
     flow_id = await _start_england(hass)
     await hass.config_entries.flow.async_configure(flow_id, LOCATION)
     result = await hass.config_entries.flow.async_configure(flow_id, {"station": "3400TH"})
     assert result["step_id"] == "england_station"
     assert result["errors"] == errors
+
+
+async def test_england_station_that_has_stopped_reporting_is_refused(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    aioclient_mock.get(EA_STATIONS_URL, json={"items": [station_json()]})
+    aioclient_mock.get(EA_STATION_URL.format(ref="3400TH"), json={"items": station_json()})
+    _mock_ea_latest(aioclient_mock, "SOME-OTHER-MEASURE")
+    flow_id = await _start_england(hass)
+    await hass.config_entries.flow.async_configure(flow_id, LOCATION)
+    result = await hass.config_entries.flow.async_configure(flow_id, {"station": "3400TH"})
+    assert result["step_id"] == "england_station"
+    assert result["errors"] == {"station": "england_station_silent"}
+
+
+async def test_england_station_with_a_lone_measure_object_is_added(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, mock_setup_entry: Any
+) -> None:
+    # The single-station endpoint sends one measure as an object, not a list
+    lone = station_json(measures=MEASURES[1])
+    aioclient_mock.get(EA_STATIONS_URL, json={"items": [lone]})
+    aioclient_mock.get(EA_STATION_URL.format(ref="3400TH"), json={"items": lone})
+    _mock_ea_latest(aioclient_mock)
+    flow_id = await _start_england(hass)
+    await hass.config_entries.flow.async_configure(flow_id, LOCATION)
+    result = await hass.config_entries.flow.async_configure(flow_id, {"station": "3400TH"})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"]["level_measure"] == LEVEL
 
 
 # --- Scotland (SEPA) ---------------------------------------------------------------------
@@ -678,6 +716,7 @@ async def test_anywhere_creates_an_english_entry(
 ) -> None:
     _mock_all_countries(aioclient_mock)
     aioclient_mock.get(EA_STATION_URL.format(ref="3400TH"), json={"items": station_json()})
+    _mock_ea_latest(aioclient_mock)
     flow_id = await _start_anywhere(hass)
     await hass.config_entries.flow.async_configure(flow_id, EVERYWHERE)
     result = await hass.config_entries.flow.async_configure(flow_id, {"station": "ea:3400TH"})
@@ -753,6 +792,7 @@ async def test_anywhere_station_errors_stay_on_the_step(
 ) -> None:
     _mock_all_countries(aioclient_mock)
     aioclient_mock.get(EA_STATION_URL.format(ref="3400TH"), status=404)
+    _mock_ea_latest(aioclient_mock)
     flow_id = await _start_anywhere(hass)
     await hass.config_entries.flow.async_configure(flow_id, EVERYWHERE)
     result = await hass.config_entries.flow.async_configure(flow_id, {"station": "ea:3400TH"})
