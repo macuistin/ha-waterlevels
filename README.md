@@ -163,12 +163,13 @@ After installation and restart:
 
 1. Go to **Settings → Devices & Services → Add Integration**
 2. Search for **Water Levels**
-3. Choose how to find the station:
-   - **Find stations near a location**: starts at your home location; drag the pin or change the radius, then pick from the stations in that area, closest first
-   - **Browse by river**: pick a river, then a station on it. Stations you've already added are left out of the list.
-   - **Enter a station number**: type the number (e.g. `14029`) or paste the station's page address from waterlevel.ie (e.g. `https://waterlevel.ie/0000014029/`)
-   - **Find stations in England (Environment Agency)**: the same pin and radius, then pick from the Environment Agency river gauges in that area, closest first
-   - **Find stations in Scotland (SEPA)**: the same, with SEPA's river gauges
+3. Choose the country: **Ireland**, **England** or **Scotland**
+   - **Ireland**: choose how to find the station:
+     - **Find stations near a location**: starts at your home location; drag the pin or change the radius, then pick from the stations in that area, closest first
+     - **Browse by river**: pick a river, then a station on it. Stations you've already added are left out of the list.
+     - **Enter a station number**: type the number (e.g. `14029`) or paste the station's page address from waterlevel.ie (e.g. `https://waterlevel.ie/0000014029/`)
+   - **England**: the same pin and radius, then pick from the Environment Agency river gauges in that area, closest first
+   - **Scotland**: the same, with SEPA's river gauges
 4. The integration detects available sensors and creates a device
 
 To add more stations, repeat from step 1 — each station is a separate integration entry and device.

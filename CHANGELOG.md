@@ -4,6 +4,9 @@ What each release changed, newest first.
 
 ## Unreleased
 
+**Changed**
+- Adding a station now starts with the country (Ireland, England or Scotland), under the title **Add a station**. Ireland then offers its three ways to find a station: near a location, by river or by station number. England and Scotland go straight to the location search, which is their only method. Nothing changes for stations you have already added.
+
 **Fixes**
 - An English station that keeps a retired level measure beside its live one (for example Ivy Street, Ashton-In-Makerfield, station 694020) failed setup with "no reading available". Adding a station now picks the measure that still reports. A station saved with the retired one looks itself up again and switches, without being re-added.
 
