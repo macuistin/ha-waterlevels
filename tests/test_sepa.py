@@ -213,7 +213,7 @@ async def test_setup_creates_a_device_with_the_same_entity_names(
     assert device.identifiers == {(DOMAIN, "sepa_234253")}
     assert device.manufacturer == "SEPA"
     assert device.model == "River gauge station"
-    assert device.configuration_url is None
+    assert device.configuration_url == "https://waterlevels.sepa.org.uk/Station/234253"
 
     assert hass.states.get("sensor.kilphedir_water_level").state == "1.3"
     assert hass.states.get("sensor.kilphedir_discharge").state == "7.5"

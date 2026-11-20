@@ -16,6 +16,7 @@ from .const import (
     CONF_SUGGESTED_THRESHOLDS,
     DOMAIN,
     SEPA_SCAN_INTERVAL,
+    SEPA_STATION_PAGE_URL,
     THRESHOLD_ENTITIES,
     TREND_RATE,
     WATER_LEVEL,
@@ -55,7 +56,7 @@ class SepaCoordinator(StationCoordinator):
 
     @property
     def configuration_url(self) -> str | None:
-        return None
+        return SEPA_STATION_PAGE_URL.format(station=self.station)
 
     def default_thresholds(self) -> tuple[dict[str, float | None], str]:
         """Thresholds from the percentiles of the station's daily record; unset without one.
