@@ -83,13 +83,19 @@ async def test_menu(hass: HomeAssistant) -> None:
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     assert result["type"] is FlowResultType.MENU
-    assert result["menu_options"] == [
-        "nearby",
-        "river",
-        "station_number",
-        "england",
-        "scotland",
-    ]
+    assert result["menu_options"] == ["ireland", "england", "scotland"]
+
+
+async def test_ireland_offers_the_ways_to_find_a_station(hass: HomeAssistant) -> None:
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "ireland"}
+    )
+    assert result["type"] is FlowResultType.MENU
+    assert result["step_id"] == "ireland"
+    assert result["menu_options"] == ["nearby", "river", "station_number"]
 
 
 async def test_station_number_creates_entry(
@@ -98,6 +104,9 @@ async def test_station_number_creates_entry(
     _mock_station(aioclient_mock)
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "ireland"}
     )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"next_step_id": "station_number"}
@@ -133,6 +142,9 @@ async def test_station_number_invalid_then_valid(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "ireland"}
+    )
+    result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"next_step_id": "station_number"}
     )
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"station": "graig"})
@@ -155,6 +167,9 @@ async def test_station_number_not_found(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "ireland"}
+    )
+    result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"next_step_id": "station_number"}
     )
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"station": "99999"})
@@ -167,6 +182,9 @@ async def test_station_number_already_configured(hass: HomeAssistant) -> None:
     MockConfigEntry(domain=DOMAIN, unique_id=f"{DOMAIN}_14029").add_to_hass(hass)
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "ireland"}
     )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"next_step_id": "station_number"}
@@ -187,6 +205,9 @@ async def test_browse_by_river(hass: HomeAssistant, aioclient_mock: AiohttpClien
 
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "ireland"}
     )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"next_step_id": "river"}
@@ -220,6 +241,9 @@ async def test_river_list_unreachable_aborts(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "ireland"}
+    )
+    result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"next_step_id": "river"}
     )
     assert result["type"] is FlowResultType.ABORT
@@ -233,6 +257,9 @@ async def test_river_stations_unreachable_shows_error(
     aioclient_mock.get("https://waterlevel.ie/group/7/", exc=TimeoutError())
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "ireland"}
     )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"next_step_id": "river"}
@@ -252,6 +279,9 @@ async def test_river_with_no_new_stations(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "ireland"}
+    )
+    result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"next_step_id": "river"}
     )
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"group": "3"})
@@ -269,6 +299,9 @@ async def test_station_number_cannot_connect(
         )
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "ireland"}
     )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"next_step_id": "station_number"}
@@ -304,6 +337,9 @@ LATEST_STATIONS = {
 async def _start_nearby(hass: HomeAssistant) -> dict:
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "ireland"}
     )
     return await hass.config_entries.flow.async_configure(
         result["flow_id"], {"next_step_id": "nearby"}

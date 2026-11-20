@@ -2,14 +2,21 @@
   "config": {
     "step": {
       "user": {
-        "title": "Cuir stáisiún tomhais leis",
-        "description": "Conas ba mhaith leat an stáisiún a aimsiú?",
+        "title": "Cuir stáisiún leis",
+        "description": "Cén tír a bhfuil an stáisiún inti?",
+        "menu_options": {
+          "ireland": "Éire",
+          "england": "Sasana",
+          "scotland": "Albain"
+        }
+      },
+      "ireland": {
+        "title": "Cuir stáisiún in Éirinn leis",
+        "description": "Conas ba mhaith leat an stáisiún a aimsiú? Tagann stáisiúin na hÉireann ó waterlevel.ie (OPW).",
         "menu_options": {
           "nearby": "Aimsigh stáisiúin in aice le háit",
           "river": "Brabhsáil de réir abhann",
-          "station_number": "Iontráil uimhir stáisiúin",
-          "england": "Aimsigh stáisiúin i Sasana (an Ghníomhaireacht Comhshaoil)",
-          "scotland": "Aimsigh stáisiúin in Albain (SEPA)"
+          "station_number": "Iontráil uimhir stáisiúin"
         }
       },
       "nearby": {

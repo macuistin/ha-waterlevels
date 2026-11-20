@@ -5,6 +5,7 @@ What each release changed, newest first.
 ## Unreleased
 
 **Changed**
+- Adding a station now starts with the country (Ireland, England or Scotland), under the title **Add a station**. Ireland then offers its three ways to find a station: near a location, by river or by station number. England and Scotland go straight to the location search, which is their only method. Nothing changes for stations you have already added.
 - A Scottish station's device now links to its page on SEPA's water levels website (**Visit** on the device page), as Irish and English stations already link to theirs.
 
 ## v0.1.0
