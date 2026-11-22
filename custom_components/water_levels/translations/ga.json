@@ -140,6 +140,7 @@
       "unknown": "Earráid gan choinne. Seiceáil logaí Home Assistant.",
       "england_unreachable": "Níorbh fhéidir teacht ar sheirbhís monatóireachta tuilte na Gníomhaireachta Comhshaoil. Seiceáil do cheangal idirlín agus bain triail eile as.",
       "england_station_not_found": "Ní bhfuarthas aon sonraí leibhéal uisce don stáisiún sin.",
+      "england_station_silent": "Níor aimsíodh aon léamh le déanaí don stáisiún sin. B’fhéidir go bhfuil a thomhsaire as seirbhís, mar sin bain triail as ceann eile.",
       "scotland_unreachable": "Níorbh fhéidir teacht ar sheirbhís sraitheanna ama SEPA. Seiceáil do cheangal idirlín agus bain triail eile as. Cuireann SEPA teorainn laethúil le hiarratais gan chlárú, mar sin b'fhéidir go bhfuil an teorainn sroichte.",
       "scotland_station_not_found": "Ní bhfuarthas aon sonraí leibhéal uisce don stáisiún sin.",
       "anywhere_unreachable": "Níorbh fhéidir teacht ar aon cheann de sheirbhísí na dtrí thír. Seiceáil do cheangal idirlín agus bain triail eile as."

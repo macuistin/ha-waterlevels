@@ -140,6 +140,7 @@
       "unknown": "Unexpected error. Check the Home Assistant logs.",
       "england_unreachable": "Could not reach the Environment Agency flood-monitoring service. Check your internet connection and try again.",
       "england_station_not_found": "No water level data was found for that station.",
+      "england_station_silent": "No recent reading was found for that station. Its gauge may be out of service, so try another.",
       "scotland_unreachable": "Could not reach SEPA's time series service. Check your internet connection and try again. SEPA limits anonymous requests each day, so it may also have reached its limit.",
       "scotland_station_not_found": "No water level data was found for that station.",
       "anywhere_unreachable": "Could not reach any of the three countries' services. Check your internet connection and try again."

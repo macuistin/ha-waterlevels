@@ -2,6 +2,12 @@
 
 What each release changed, newest first.
 
+## Unreleased
+
+**Fixes**
+- An English station whose API record lists a single measure, such as Ellamsbridge Road (694122) and Haydock West End Road (694015), was refused with "No water level data was found for that station". It can now be added.
+- An English station that is listed as active but has stopped reporting, such as Rivington Road (694121, silent since July), was added and then failed setup for ever. Adding it now stops with a clear message to choose another station. Stations you added before this keep retrying and recover if the gauge returns.
+
 ## v0.2.0b1
 
 A beta of the next release, for HACS users who enable beta versions. It adds a country step when adding a station, a search across all countries and a fix for English stations with a retired level measure. It is a pre-release: stable installs stay on v0.1.0.
