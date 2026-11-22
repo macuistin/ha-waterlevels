@@ -2,7 +2,9 @@
 
 What each release changed, newest first.
 
-## Unreleased
+## v0.2.0b2
+
+A second beta. It fixes two problems adding English stations found while testing 0.2.0b1. It is a pre-release: stable installs stay on v0.1.0.
 
 **Fixes**
 - An English station whose API record lists a single measure, such as Ellamsbridge Road (694122) and Haydock West End Road (694015), was refused with "No water level data was found for that station". It can now be added.
