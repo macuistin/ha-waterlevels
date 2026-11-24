@@ -2,6 +2,11 @@
 
 What each release changed, newest first.
 
+## Unreleased
+
+**Added**
+- A README section on coastal and tidal stations (Irish ports, piers, quays and docks, and English tidal gauges): how the tide affects the trend, Flood Stage and Flood Alert, and where their thresholds come from.
+
 ## v0.2.0b2
 
 A second beta. It fixes two problems adding English stations found while testing 0.2.0b1. It is a pre-release: stable installs stay on v0.1.0.
