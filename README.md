@@ -137,6 +137,14 @@ All entities expose `latitude` and `longitude` as state attributes. Stations app
 
 **Scotland.** Any river gauge in [SEPA's time series service](https://timeseriesdoc.sepa.org.uk/) that reports a river level. Each is a device of type River gauge station (manufacturer SEPA) with the same entities as an England station: Water Level, Water Level Trend, Flood Stage, Flood Alert, the three threshold numbers, Station Information, Last Reading, Data Age, Data Stale, and Discharge where SEPA derives a flow for the gauge. Levels are metres above Ordnance Datum. **Wales** is not supported. Natural Resources Wales's river levels API needs a per-user key from its developer portal and its endpoints aren't public, so it is left out for now.
 
+### Coastal and tidal stations
+
+Some stations measure the sea, not a river: Irish stations named as ports, piers, quays or docks, such as Youghal Quay or Limerick Dock, and English gauges that report a tidal level. They work like any other station, but the level rises and falls with the tide twice a day.
+
+- Water Level Trend shows the tide turning, not a river rising or falling.
+- Flood thresholds on a tidal station describe the sea, not a river. Irish tidal stations usually have OPW alarm levels and a long daily record, so their thresholds start from those, not from the fixed fallback, and England's start from the station's stage scale. They are statistics, not tide or surge warnings: check them, and set your own for the height at which you want to be told.
+- A station that reports a Water Level OD gives the level above Ordnance Datum, which is a fixed reference you can compare between stations.
+
 ---
 
 ## Installation
