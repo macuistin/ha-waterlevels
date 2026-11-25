@@ -2,10 +2,24 @@
 
 What each release changed, newest first.
 
-## Unreleased
+## v1.0.0
+
+The first stable release since 0.1.0, and the first for HACS's default store. It rolls up the 0.2.0 betas: a country step when adding a station, a search across all countries, a Scottish device link, a README section on coastal and tidal stations, and fixes for English stations. Nothing changes for stations you have already added. It is an unofficial community integration that uses public data.
 
 **Added**
+- **Search all countries** when adding a station: one location and radius search across Ireland, England and Scotland, closest first. See v0.2.0b1.
 - A README section on coastal and tidal stations (Irish ports, piers, quays and docks, and English tidal gauges): how the tide affects the trend, Flood Stage and Flood Alert, and where their thresholds come from.
+
+**Changed**
+- Adding a station starts with the country (Ireland, England or Scotland), under the title **Add a station**.
+- A Scottish station's device links to its page on SEPA's water levels website.
+
+**Fixes**
+- English stations with a retired level measure, or a single measure, can now be added.
+- An English station that has stopped reporting is refused when adding it, with a clear message.
+
+**Upgrading**
+- Stable installs move from 0.1.0 straight to 1.0.0. Beta testers on 0.2.0b2 get the same code plus the README section.
 
 ## v0.2.0b2
 

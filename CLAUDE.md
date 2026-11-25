@@ -169,6 +169,14 @@ reason. Checks in brackets are tests in `tests/test_standards.py` unless named o
   from a `vX.Y.Z` tag, as above.
 - The repository stays public with issues enabled, and keeps its description and its `hacs`
   and `home-assistant` topics.
+- `hacs.json` uses only keys HACS knows [`test_hacs_json_uses_only_keys_hacs_knows`]. The
+  README opens with the unofficial notice naming each source
+  [`test_readme_says_the_integration_is_unofficial`]. `brand/` holds the icon and the light and
+  dark logos at both sizes [`test_brand_assets_exist`].
+- Listing in the HACS default store (a pull request to `hacs/default`, opened by the maintainer
+  from their own account) needs the latest stable release to be recent: a pre-release is not
+  installed by default, so cut a stable release before submitting. Once listed, change the
+  README's HACS install steps to search for "Water Levels" without adding a custom repository.
 
 ## Commands
 
