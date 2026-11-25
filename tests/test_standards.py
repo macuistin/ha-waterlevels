@@ -176,7 +176,14 @@ def test_requirements_are_pinned_pypi_packages() -> None:
 
 
 def test_brand_assets_exist() -> None:
-    for name in ["icon.png", "icon@2x.png", "logo.png", "logo@2x.png"]:
+    for name in [
+        "icon.png",
+        "icon@2x.png",
+        "logo.png",
+        "logo@2x.png",
+        "dark_logo.png",
+        "dark_logo@2x.png",
+    ]:
         assert (PKG / "brand" / name).is_file(), name
 
 
@@ -237,6 +244,30 @@ def test_hacs_manifest_keys() -> None:
     assert hacs["homeassistant"]
     # HACS asks region-limited repositories to say so: Ireland (OPW), England (EA).
     assert hacs["country"] == ["IE", "GB"]
+
+
+def test_hacs_json_uses_only_keys_hacs_knows() -> None:
+    # A misspelt key is ignored by HACS, so the setting silently does nothing.
+    known = {
+        "name",
+        "content_in_root",
+        "zip_release",
+        "filename",
+        "hide_default_branch",
+        "country",
+        "homeassistant",
+        "persistent_directory",
+        "hacs",
+        "render_readme",
+    }
+    assert set(_load(ROOT / "hacs.json")) <= known
+
+
+def test_readme_says_the_integration_is_unofficial() -> None:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "**Unofficial.**" in readme
+    for source in ["waterlevel.ie", "Environment Agency", "SEPA"]:
+        assert source in readme.split("## ", 1)[0], source
 
 
 def test_one_integration_in_the_repo() -> None:
