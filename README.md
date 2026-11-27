@@ -414,3 +414,9 @@ standard. [CLAUDE.md](CLAUDE.md) lists the rules each change keeps, and
 More on the project is in the [docs folder](docs/README.md).
 
 CI also runs [hassfest](https://developers.home-assistant.io/blog/2020/04/16/hassfest/) and the [HACS action](https://hacs.xyz/docs/publish/action/), and runs the tests against the minimum Home Assistant version in `hacs.json` as well as the latest release.
+
+## Support the project
+
+The integration is free and works the same without this. If it is useful to you, you can support its development through [Buy Me a Coffee](https://buymeacoffee.com/macuistin).
+
+[![Buy Me a Coffee](https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png)](https://buymeacoffee.com/macuistin)
