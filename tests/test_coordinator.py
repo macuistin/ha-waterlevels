@@ -36,12 +36,16 @@ def _coordinator(hass: HomeAssistant, sensors: list[str]) -> WaterlevelCoordinat
 @pytest.mark.parametrize(
     ("level", "trend"), [("1.00", "falling"), ("1.21", "steady"), ("1.50", "rising")]
 )
-async def test_trend_against_yesterday_mean(
+async def test_trend_against_a_reading_two_hours_earlier(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, level: str, trend: str
 ) -> None:
+    # Yesterday's mean (1.2) is ignored: the river was at 1.20 two hours ago
     aioclient_mock.get(
         WEEK,
-        text=f"datetime,value\nbad,row\n2026-10-13T00:00:00Z,0.90\n2026-10-19T18:00:00Z,{level}\n",
+        text=(
+            "datetime,value\nbad,row\n2026-10-13T00:00:00Z,0.90\n"
+            f"2026-10-19T16:00:00Z,1.20\n2026-10-19T18:00:00Z,{level}\n"
+        ),
     )
     aioclient_mock.get(
         SUMMARY, text="Datetime,Value,Min,Mean,Max\n2026-10-18,,1.1,1.2,1.3\n2026-10-19,,x,y,z\n"
@@ -55,6 +59,39 @@ async def test_trend_against_yesterday_mean(
     assert coordinator.sensor_attrs["0001"]["trend"] == trend
     assert coordinator.sensor_attrs["0001"]["week_min"] == 0.9
     assert coordinator.latitude is None
+
+
+async def test_no_trend_without_a_reading_near_two_hours_earlier(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    aioclient_mock.get(
+        WEEK, text="datetime,value\n2026-10-18T18:00:00Z,0.90\n2026-10-19T18:00:00Z,1.50\n"
+    )
+    aioclient_mock.get(GEOJSON_URL, status=500)
+    aioclient_mock.get(LATEST_GEOJSON_URL, json=NO_FEED)
+    coordinator = _coordinator(hass, ["0001"])
+    await coordinator._async_update_data()
+
+    assert "trend" not in coordinator.sensor_attrs["0001"]
+
+
+async def test_flood_stage_sorts_thresholds_set_out_of_order(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    aioclient_mock.get(WEEK, text="datetime,value\n2026-10-19T18:00:00Z,2.0\n")
+    aioclient_mock.get(GEOJSON_URL, status=500)
+    aioclient_mock.get(LATEST_GEOJSON_URL, json=NO_FEED)
+    coordinator = _coordinator(hass, ["0001"])
+    coordinator.data = await coordinator._async_update_data()
+    # Watch above Serious: the lowest value still acts as Watch
+    coordinator.set_threshold("watch", 3.0)
+    coordinator.set_threshold("alert", 2.5)
+    coordinator.set_threshold("serious", 1.0)
+    assert coordinator.flood_stage() == "watch"
+    coordinator.set_threshold("serious", 1.5)
+    coordinator.set_threshold("alert", 1.0)
+    coordinator.set_threshold("watch", 2.0)
+    assert coordinator.flood_stage() == "serious"
 
 
 async def test_falls_back_to_day_csv_when_week_fails(

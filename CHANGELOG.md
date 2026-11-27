@@ -2,6 +2,17 @@
 
 What each release changed, newest first.
 
+## Unreleased
+
+**Changed**
+- The Water Level `trend` attribute (Ireland) now compares the level with a reading from about two hours earlier in the station's last 7 days, instead of yesterday's daily mean, so a river that rose overnight and is now falling no longer reads as rising all day. There is no trend when the week has no reading near two hours earlier.
+
+**Fixes**
+- Flood Stage and Flood Alert now sort the thresholds you have set, so a Watch level set above Alert or Serious no longer gives odd stages: the lowest value acts as Watch, the next as Alert and the highest as Serious.
+
+**Upgrading**
+- The trend can differ from before for the same river, because it now reflects the last two hours. An automation on `trend` needs no change.
+
 ## v1.0.0
 
 The first stable release since 0.1.0, and the first for HACS's default store. It rolls up the 0.2.0 betas: a country step when adding a station, a search across all countries, a Scottish device link, a README section on coastal and tidal stations, and fixes for English stations. Nothing changes for stations you have already added. It is an unofficial community integration that uses public data.

@@ -51,8 +51,11 @@ _LOGGER = logging.getLogger(__name__)
 LATEST_FEED_TTL = timedelta(minutes=15)
 # Daily summaries only change once a day
 SUMMARY_TTL = timedelta(hours=1)
-# Trend threshold: ±this many metres vs yesterday mean = rising/falling
+# Trend threshold: ±this many metres vs a reading TREND_LOOKBACK earlier = rising/falling
 TREND_THRESHOLD = 0.02
+TREND_LOOKBACK = timedelta(hours=2)
+# The reference reading may be this far from TREND_LOOKBACK before there is no trend
+TREND_LOOKBACK_TOLERANCE = timedelta(minutes=45)
 DATA_LATEST = f"{DOMAIN}_latest"
 # The trend rate is fitted over this much recent history...
 TREND_WINDOW = timedelta(hours=3)
@@ -258,10 +261,12 @@ class StationCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if level is None or all(value is None for value in self._thresholds.values()):
             return None
         stage = "normal"
-        # Thresholds in ascending order of severity: the highest one reached wins
-        for key in THRESHOLD_ENTITIES:
-            threshold = self._thresholds.get(key)
-            if threshold is not None and level >= threshold:
+        # The set thresholds are sorted, so Watch above Serious still gives sensible
+        # stages: the lowest value is the Watch level, and so on up
+        keys = [k for k in THRESHOLD_ENTITIES if self._thresholds.get(k) is not None]
+        values = sorted(v for v in self._thresholds.values() if v is not None)
+        for key, threshold in zip(keys, values, strict=True):
+            if level >= threshold:
                 stage = key
         return stage
 
@@ -489,11 +494,12 @@ class WaterlevelCoordinator(StationCoordinator):
             cfg = SUMMARY_SENSOR_TYPES[key]
             data[key] = self._summaries.get(cfg["summary_source"], {}).get(cfg["summary_col"])
 
-        # Compute trend for water level sensor (0001) vs yesterday's daily mean
-        if data.get(WATER_LEVEL) is not None:
-            yesterday_mean = self._summaries.get(WATER_LEVEL, {}).get("mean")
-            if yesterday_mean is not None:
-                delta = data[WATER_LEVEL] - yesterday_mean
+        # Compare the water level with a reading from about TREND_LOOKBACK earlier
+        if (current := self._readings.get(WATER_LEVEL)) and (week := self._week.get(WATER_LEVEL)):
+            target = current.time - TREND_LOOKBACK
+            earlier = min(week, key=lambda r: abs(r.time - target))
+            if abs(earlier.time - target) <= TREND_LOOKBACK_TOLERANCE:
+                delta = current.value - earlier.value
                 if delta > TREND_THRESHOLD:
                     trend = "rising"
                 elif delta < -TREND_THRESHOLD:
