@@ -4,6 +4,9 @@ What each release changed, newest first.
 
 ## Unreleased
 
+**Added**
+- A repair issue when a station has sent no reading for 30 days, suggesting you remove it. It clears itself if the station reports again. It comes with an Irish translation (a machine-drafted first version that needs a fluent speaker's review).
+
 **Changed**
 - The README has a **Support the project** section with a Buy Me a Coffee link.
 - The Water Level `trend` attribute (Ireland) now compares the level with a reading from about two hours earlier in the station's last 7 days, instead of yesterday's daily mean, so a river that rose overnight and is now falling no longer reads as rising all day. There is no trend when the week has no reading near two hours earlier.

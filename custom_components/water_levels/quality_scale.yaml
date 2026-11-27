@@ -74,9 +74,7 @@ rules:
   reconfiguration-flow:
     status: exempt
     comment: The station is the entry's identity; a different station is a new entry
-  repair-issues:
-    status: exempt
-    comment: No problem the user can fix; an outage is shown as unavailable entities
+  repair-issues: done  # issues.py: a station silent for 30 days; README: How the data is updated
   stale-devices:
     status: exempt
     comment: The single device is removed with its config entry

@@ -10,6 +10,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 
 from .const import CONF_AVAILABLE_SENSORS, CONF_SOURCE, DOMAIN
 from .coordinator import WaterlevelConfigEntry
+from .issues import async_delete_station_issue, async_update_station_issue
 from .providers import provider_for
 
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.NUMBER]
@@ -26,6 +27,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: WaterlevelConfigEntry) -
         if coordinator.last_reading_time is None:
             raise
     entry.runtime_data = coordinator
+    # A station silent for a month most likely won't come back: say so once, and clear it
+    # if it does. Checked now and after every update.
+    async_update_station_issue(hass, coordinator)
+    entry.async_on_unload(
+        coordinator.async_add_listener(lambda: async_update_station_issue(hass, coordinator))
+    )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     # Reload for option or sensor changes, not when the threshold suggestions are stored
     reload_key = _reload_key(entry)
@@ -46,4 +53,5 @@ def _reload_key(entry: WaterlevelConfigEntry) -> tuple[dict[str, Any], tuple[str
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: WaterlevelConfigEntry) -> bool:
+    async_delete_station_issue(hass, entry.runtime_data)
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

@@ -323,6 +323,12 @@
       }
     }
   },
+  "issues": {
+    "station_not_reporting": {
+      "title": "Tá {station} tar éis éirí as tuairisciú",
+      "description": "Níor sheol stáisiún {station} aon léamh le {days} lá, mar sin is dócha go bhfuil sé dícheadaithe nó bogtha. Taispeánann a chuid braiteoirí an léamh deireanach a sheol sé fós. Má tá an stáisiún imithe go brách, bain de Water Levels é in Socruithe, Feistí agus seirbhísí. Imíonn an ceist seo uaidh féin má thuairiscíonn an stáisiún arís."
+    }
+  },
   "exceptions": {
     "update_failed": {
       "message": "Níorbh fhéidir aon sonraí le déanaí a léamh do stáisiún {station} óna fhoinse sonraí: {error}"
