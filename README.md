@@ -151,6 +151,16 @@ Some stations measure the sea, not a river: Irish stations named as ports, piers
 
 ### Via HACS (recommended)
 
+1. In Home Assistant, open **HACS** and search for "Water Levels".
+2. Open it and select **Download**.
+3. Restart Home Assistant.
+
+On Home Assistant 2026.11 and later you can also find it in the Home Assistant Marketplace.
+
+### Via HACS as a custom repository
+
+Use this if the integration doesn't appear in the HACS search.
+
 1. In Home Assistant, open **HACS → Integrations**
 2. Click the three-dot menu → **Custom repositories**
 3. Add `https://github.com/macuistin/ha-waterlevels` as an **Integration**
