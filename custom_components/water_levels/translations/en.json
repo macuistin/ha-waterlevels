@@ -323,6 +323,12 @@
       }
     }
   },
+  "issues": {
+    "station_not_reporting": {
+      "title": "{station} has stopped reporting",
+      "description": "Station {station} has sent no reading for {days} days, so it has most likely been decommissioned or moved. Its sensors still show the last reading it sent. If the station is gone for good, remove it from Water Levels in Settings, Devices & services. This issue clears itself if the station reports again."
+    }
+  },
   "exceptions": {
     "update_failed": {
       "message": "Could not read any recent data for station {station} from its data source: {error}"
