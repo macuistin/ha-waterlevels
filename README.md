@@ -225,7 +225,7 @@ Find station numbers and rivers at [waterlevel.ie/group/list](https://waterlevel
 
 The flood stage and Flood Alert are worked out in Home Assistant from the latest Water Level and your thresholds; changing a threshold updates them straight away without a download.
 
-If waterlevel.ie can't be reached or a gauge stops reporting, the sensors keep showing their last reading, however long the outage. Each one has a `last_reported` attribute (when that reading was taken) and a `stale` attribute, and Last Reading and Data Age show the same for the station. Once the station has sent nothing for 3 hours (an option, see Configuration), Data Stale turns on and `stale` becomes `true`; the values stay until a new reading arrives. Flood Stage and Flood Alert also carry `last_reported` and `stale` from the water level they use, so an automation can ignore an old reading. Entities are only unavailable if the station has never been read. The integration logs the outage once and logs again when it recovers. If only the water level is missing, Flood Stage and Flood Alert show unknown rather than "normal".
+If waterlevel.ie can't be reached or a gauge stops reporting, the sensors keep showing their last reading, however long the outage. Each one has a `last_reported` attribute (when that reading was taken) and a `stale` attribute, and Last Reading and Data Age show the same for the station. Once the station has sent nothing for 3 hours (an option, see Configuration), Data Stale turns on and `stale` becomes `true`; the values stay until a new reading arrives. Flood Stage and Flood Alert also carry `last_reported` and `stale` from the water level they use, so an automation can ignore an old reading. Entities are only unavailable if the station has never been read. The integration logs the outage once and logs again when it recovers. If only the water level is missing, Flood Stage and Flood Alert show unknown rather than "normal". A station that has sent no reading for 30 days raises a repair issue in **Settings → System → Repairs** suggesting you remove it, as it has most likely been decommissioned. The issue clears itself if the station reports again.
 
 ---
 
@@ -414,3 +414,9 @@ standard. [CLAUDE.md](CLAUDE.md) lists the rules each change keeps, and
 More on the project is in the [docs folder](docs/README.md).
 
 CI also runs [hassfest](https://developers.home-assistant.io/blog/2020/04/16/hassfest/) and the [HACS action](https://hacs.xyz/docs/publish/action/), and runs the tests against the minimum Home Assistant version in `hacs.json` as well as the latest release.
+
+## Support the project
+
+The integration is free and works the same without this. If it is useful to you, you can support its development through [Buy Me a Coffee](https://buymeacoffee.com/macuistin).
+
+[![Buy Me a Coffee](https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png)](https://buymeacoffee.com/macuistin)

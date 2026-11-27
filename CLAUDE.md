@@ -137,9 +137,12 @@ reason. Checks in brackets are tests in `tests/test_standards.py` unless named o
   fluent speaker.
 - One device per station. Diagnostics hold only public station data; anything else added
   to them must be redacted.
+- One repair issue exists: `issues.py` raises "station not reporting" when a station's
+  newest reading is 30 days old, and clears it when the station reports again or the entry
+  unloads [`tests/test_repairs.py`]. It is not fixable (the user removes the entry), so a
+  new repair issue needs its own translation under `issues` in `strings.json`.
 - The exemptions hold while each entry is one station with nothing on the network to
-  discover and nothing the user can repair. Revisit dynamic-devices, stale-devices,
-  discovery and repair-issues if that changes.
+  discover. Revisit dynamic-devices, stale-devices and discovery if that changes.
 
 ### Platinum
 
