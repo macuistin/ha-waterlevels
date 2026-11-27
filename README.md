@@ -66,7 +66,7 @@ Each gauge station becomes a **device** in Home Assistant with all its sensors, 
 
 Not all sensors are present at every station. The integration probes the API on setup and only creates entities for sensors that actually return data. To turn on a disabled sensor, open it from the device page and enable it in its settings.
 
-Live sensors carry these attributes: `last_reported` (the time of the reading), `week_min` and `week_max` (the range over the last 7 days, on Water Level), and `trend` (`rising`, `steady` or `falling` against yesterday's mean, on Water Level). Water levels can be shown in other length units from each entity's settings.
+Live sensors carry these attributes: `last_reported` (the time of the reading), `week_min` and `week_max` (the range over the last 7 days, on Water Level), and `trend` (`rising`, `steady` or `falling` against the reading from about two hours earlier, on Water Level). Water levels can be shown in other length units from each entity's settings.
 
 ### Binary Sensor
 

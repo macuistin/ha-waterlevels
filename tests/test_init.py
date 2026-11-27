@@ -12,7 +12,10 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClien
 from custom_components.water_levels.const import DOMAIN, GEOJSON_URL, LATEST_GEOJSON_URL
 
 DAY_CSV = "datetime,value\n2026-10-19T18:00:00Z,1.30\n2026-10-19T18:15:00Z,1.42\n"
-WEEK_CSV = "datetime,value\n2026-10-13T00:00:00Z,0.90\n2026-10-19T18:15:00Z,1.42\n"
+WEEK_CSV = (
+    "datetime,value\n2026-10-13T00:00:00Z,0.90\n"
+    "2026-10-19T16:15:00Z,1.20\n2026-10-19T18:15:00Z,1.42\n"
+)
 SUMMARY_CSV = "Datetime,Value,Min,Mean,Max\n2026-10-18,,1.1,1.2,1.3\n"
 TEMP_DAY_CSV = "datetime,value\n2026-10-19T18:15:00Z,11.5\n"
 
